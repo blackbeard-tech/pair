@@ -8,7 +8,6 @@ permissions: {}
 
 jobs:
   scorecard:
-    if: github.event.repository.private == false # Scorecard publishing needs a public repo
     runs-on: ubuntu-latest
     permissions: { contents: read, security-events: write, id-token: write, actions: read }
     steps:
