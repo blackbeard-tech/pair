@@ -1,8 +1,9 @@
 name: ci
+# Cost: each job bills at least 1 min, so checks share one Linux job. Rust lives in rust.yml.
 on:
   push: { branches: [main] }
   pull_request:
-  schedule: [{ cron: "17 4 * * 1" }]
+  schedule: [{ cron: "17 4 * * 1" }] # weekly: new CVEs/leaks rules against unchanged code
   workflow_dispatch:
 
 permissions: {}
@@ -12,43 +13,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  secrets:
-    name: gitleaks (full history)
+  checks:
+    name: secrets, CVEs, workflows, dolt refs
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions: { contents: read }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { fetch-depth: 0, persist-credentials: false }
-      - name: gitleaks (pinned binary, checksum-verified)
+
+      - name: gitleaks full history (pinned binary, checksum-verified)
         env: { V: 8.30.1, SHA: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb }
         run: |
-          curl -fsSLo gl.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${V}/gitleaks_${V}_linux_x64.tar.gz"
-          echo "${SHA}  gl.tgz" | sha256sum -c -
-          tar xzf gl.tgz gitleaks
-          ./gitleaks git --redact --no-banner -v .
+          curl -fsSLo /tmp/gl.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${V}/gitleaks_${V}_linux_x64.tar.gz"
+          echo "${SHA}  /tmp/gl.tgz" | sha256sum -c -
+          tar xzf /tmp/gl.tgz -C /tmp gitleaks
+          /tmp/gitleaks git --redact --no-banner -v .
 
-  workflows:
-    name: actionlint + zizmor
-    runs-on: ubuntu-latest
-    permissions: { contents: read }
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: { persist-credentials: false }
-      - name: actionlint
-        run: |
-          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/914e7df21a07ef503a81201c76d2b11c789d3fca/scripts/download-actionlint.bash) 1.7.12
-          ./actionlint -color
-      - uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
-        with: { advanced-security: false }
-
-  cve:
-    name: osv-scanner (CVE)
-    runs-on: ubuntu-latest
-    permissions: { contents: read }
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: { persist-credentials: false }
-      - uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+      - name: osv-scanner (CVEs in lockfiles)
+        uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
         with:
           scan-args: |-
             --recursive
@@ -56,60 +39,29 @@ jobs:
             --config=osv-scanner.toml
             ./
 
+      - name: actionlint
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/914e7df21a07ef503a81201c76d2b11c789d3fca/scripts/download-actionlint.bash) 1.7.12 /tmp
+          /tmp/actionlint -color
+
+      - uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
+        with: { advanced-security: false }
+
+      # GitHub can't hide a ref namespace in a public repo; beads' Dolt data lives in a
+      # separate private repo. Fail loudly if refs/dolt/* ever lands here.
+      - name: no refs/dolt in this repo
+        env: { REPO: "${{ github.repository }}", GH_TOKEN: "${{ github.token }}" }
+        run: |
+          refs=$(git ls-remote "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" 'refs/dolt/*')
+          if [ -n "$refs" ]; then echo "::error::refs/dolt found: $refs"; exit 1; fi
+
   dependency-review:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions: { contents: read, pull-requests: write }
     steps:
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: low
           comment-summary-in-pr: on-failure
-
-  plugin:
-    name: claude plugin validate
-    runs-on: ubuntu-latest
-    permissions: { contents: read }
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: { persist-credentials: false }
-      - if: hashFiles('.claude-plugin/plugin.json') != ''
-        run: npx --yes @anthropic-ai/claude-code@2.1.309 plugin validate . --strict
-
-  no-dolt-refs:
-    # GitHub can't hide a ref namespace in a public repo; beads' Dolt data lives in a
-    # separate private repo. Fail loudly if refs/dolt/* ever lands here.
-    name: no refs/dolt in this repo
-    runs-on: ubuntu-latest
-    permissions: { contents: read }
-    steps:
-      - env:
-          REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          refs=$(git ls-remote "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" 'refs/dolt/*')
-          if [ -n "$refs" ]; then echo "::error::refs/dolt found: $refs"; exit 1; fi
-
-  rust:
-    name: rust (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest] # Linux later
-    runs-on: ${{ matrix.os }}
-    permissions: { contents: read }
-    defaults:
-      run: { shell: bash, working-directory: server }
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: { persist-credentials: false }
-      - run: rustup toolchain install stable --profile minimal -c clippy,rustfmt && rustup default stable
-      - run: cargo fmt --check
-      - run: cargo clippy --locked --release -- -D warnings
-      - run: cargo test --locked
-      - run: cargo build --locked --release
-      - name: e2e over public relay
-        run: |
-          PY=$(command -v python3 || command -v python)
-          BIN=target/release/pair; [ "$RUNNER_OS" = Windows ] && BIN=$BIN.exe
-          "$PY" -I tests/two_peers.py "$BIN"

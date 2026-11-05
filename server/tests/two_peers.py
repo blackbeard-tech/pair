@@ -60,15 +60,21 @@ assert not err, text
 code = code_of(text)
 print("code", code)
 assert b.tool("send_to_peer", text="too early")[1], "send before pairing must fail"
-assert not b.tool("pair_join", code=code, name="Bob <script>")[1]
+assert "trust: ask" in b.tool("pair_join", code=code, name="Bob <script>", trust="ask")[0]
 assert a.event("pair_request")["meta"]["peer"] == "Bob script"
 assert b.tool("send_to_peer", text="before approval")[1], "joiner can't send before approval"
 assert not a.tool("pair_accept")[1]
 assert b.event("paired")["meta"]["peer"] == "Alice"
-assert not b.tool("send_to_peer", text="hello from bob‮")[1]
-assert a.event("message")["content"] == "hello from bob"
+IDLE = int(__import__("os").environ.get("PAIR_E2E_IDLE", "0"))  # e.g. 1200 to prove the heartbeat
+if IDLE:
+    print(f"  idling {IDLE}s")
+    __import__("time").sleep(IDLE)
+assert not b.tool("send_to_peer", text="hello from bob\u202e")[1]
+msg = a.event("message")
+assert msg["content"] == "hello from bob" and msg["meta"]["trust"] == "read-only", msg
 assert not a.tool("send_to_peer", text="hi bob")[1]
-assert b.event("message")["content"] == "hi bob"
+msg = b.event("message")
+assert msg["content"] == "hi bob" and msg["meta"]["trust"] == "ask", msg
 assert not a.tool("unpair")[1]
 assert "other side unpaired" in b.event("unpaired")["content"]
 assert "you unpaired" in a.event("unpaired")["content"]

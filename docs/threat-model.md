@@ -1,6 +1,6 @@
 # pair: threat model (pilot, P1)
 
-Status: draft for IT/Security review, 2026-11-05. Items marked **[unverified]** are not yet tested.
+Status: draft for IT/Security review, 2026-11-05. Owner: Blackbeard Technologies. Items marked **[unverified]** are not yet tested.
 
 ## Scope
 
@@ -44,17 +44,21 @@ other agent tools (P3) and remembered peers are out of scope.
 |---|---|---|---|
 | T1 | **Code guessing or interception.** An attacker redeems the code before B does. | SPAKE2 gives one online guess per code (2 words ≈ 16 bits, 1 in 65,536). A wrong guess fails both sides and burns the code (tested). An intercepted code still needs A's approval, and the approval prompt shows the joiner's name. | If the code leaks and the attacker gets in first, A could approve them by mistake. Codes are single-use; the ~2-minute expiry is enforced by our client **[unverified]**. |
 | T2 | **Relay reads or alters messages.** | Messages are encrypted and authenticated (NaCl secretbox) with keys only the two peers hold. The relay can't run a man-in-the-middle attack without knowing the code (that's what SPAKE2 guarantees). | Metadata is exposed (see table). The relay can delay or drop messages. |
-| T3 | **Prompt injection from the peer.** Peer messages try to make your Claude act against you. | Inbound messages are marked as untrusted requests from the named peer, never as instructions from the owner. The owner picks a trust level at `/pair` time: **ask** (default; every action a peer triggers needs approval), **read-only** (reads run automatically, everything else asks) or **normal**. | Claude's judgment is the main defence in "normal" mode. Whether the trust level can tell peer-triggered tool calls from owner-triggered ones is an open design question (`pair-630.3`). The fallback is to apply it to the whole session while paired. |
+| T3 | **Prompt injection from the peer.** Peer messages try to make your Claude act against you. | Inbound messages are marked as untrusted requests from the named peer, never as instructions from the owner. The owner picks a trust level at `/pair` time: **read-only** (default; reads run automatically, everything else asks), **ask** (every action a peer triggers needs approval) or **normal**. In the POC the level is an instruction to Claude, not yet enforced by a hook. | Claude's judgment is the main defence in "normal" mode. Whether the trust level can tell peer-triggered tool calls from owner-triggered ones is an open design question (`pair-630.3`). The fallback is to apply it to the whole session while paired. |
 | T4 | **Peer approves your tool use.** | `pair` never declares the channel permission-relay capability, so approvals always stay with the local owner. A test will check this (`pair-630.2`). | None identified. |
-| T5 | **Data leaving the machine.** Your Claude includes secrets or confidential code in a reply. | The owner sees every outbound message in their session. The pilot runs on non-sensitive work only until this review signs off. | No technical filter yet. Options: scan outbound messages for secrets, or require owner approval to send in "ask" mode. **Decision needed.** |
+| T5 | **Data leaving the machine.** Your Claude includes secrets or confidential code in a reply. | The owner sees every outbound message in their session. The pilot runs on non-sensitive work only until this review signs off. | Accepted for the pilot: no outbound filter (owner decision, 2026-11-05). Secret scanning and PII redaction are candidates for a later paid tier. |
 | T6 | **Peer crashes your client.** | Found: magic-wormhole 0.8.1 panics on a message with a non-numeric phase label. We must patch or guard it before the pilot (`pair-630.4`). | Denial of service only; data is not exposed. |
 | T7 | **Compromised binary or dependency.** | Locked dependencies, cargo-deny/audit, osv-scanner, CodeQL, build provenance on releases, and a checksum check before first run. | Binaries are unsigned in the pilot (macOS signing available later). |
 | T8 | **Relay blocked or unavailable.** | Pairing fails cleanly with a message. | Corporate firewalls may block `ws://` on port 4000. A self-hosted `wss://` relay on port 443 is the fix (P2, possibly brought forward). |
-| T9 | **Stale pairing.** | Pairing is session-scoped. Nothing is persisted, and K is discarded on unpair or exit. | A dropped connection can't be resumed in the current library, so the user has to pair again. |
+| T9 | **Stale or dropped pairing.** | Pairing is session-scoped. Nothing is persisted, and K is discarded on unpair or exit. A heartbeat every 4 idle minutes keeps the relay connection up (the spike saw drops between 5 and 15 idle minutes without it). | A dropped connection can't be resumed in the current library, so the user has to pair again. |
+
+## Owner decisions (2026-11-05)
+
+1. The public relay's metadata exposure is acceptable for the pilot.
+2. No outbound content filter in the pilot (T5); revisit for a paid tier.
+3. Default trust level is read-only.
 
 ## Asks of the reviewer
 
-1. Is the public relay's metadata exposure (table above) acceptable for the pilot, or must the
-   self-hosted relay come first?
-2. Which data classes may be used in the pilot (see T5)?
-3. Is the default trust level "ask" sufficient, or should outbound messages also need approval?
+1. Which data classes may be used in the pilot, given there is no outbound filter (T5)?
+2. Is relying on Claude to honour the trust level acceptable until hook enforcement lands (T3)?

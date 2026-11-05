@@ -1,0 +1,40 @@
+name: rust
+# Cost: free private repo = 2000 min/month, Windows bills 2x, macOS 10x.
+# Push/PR: one Linux runner, only when server/ changes. Target OSes: manual dispatch (and releases later).
+on:
+  push: { branches: [main], paths: ["server/**", ".github/workflows/rust.yml"] }
+  pull_request: { paths: ["server/**", ".github/workflows/rust.yml"] }
+  workflow_dispatch:
+    inputs:
+      targets: { description: "Also run on macOS + Windows", type: boolean, default: true }
+
+permissions: {}
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: rust (${{ matrix.os }})
+    strategy:
+      fail-fast: true
+      matrix:
+        os: ${{ fromJSON(inputs.targets && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    permissions: { contents: read }
+    defaults:
+      run: { shell: bash, working-directory: server }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - run: rustup toolchain install stable --profile minimal -c clippy,rustfmt && rustup default stable
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --release -- -D warnings
+      - run: cargo test --locked
+      - name: e2e over public relay
+        run: |
+          PY=$(command -v python3 || command -v python)
+          BIN=target/release/pair; [ "$RUNNER_OS" = Windows ] && BIN=$BIN.exe
+          "$PY" -I tests/two_peers.py "$BIN"
