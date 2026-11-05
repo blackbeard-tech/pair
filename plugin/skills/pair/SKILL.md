@@ -15,7 +15,8 @@ Arguments: $ARGUMENTS
   who runs `/pair:pair <code>`. It works once and expires in 2 minutes.
 - **A code given** (number-word-word, e.g. `7-amber-falcon`): call `pair_join` with it.
 
-Pass `name` from `git config user.name` if available. Pass `trust` only if the user gave one; the default
+Don't pass `name`: the server shows the other side user@host · git name · git email. Pass `trust` only if
+the user gave one; the default
 is read-only (peer requests may trigger read-only tools; everything else asks the user).
 
 If the pair tools are missing, the channel isn't loaded: tell the user to restart with

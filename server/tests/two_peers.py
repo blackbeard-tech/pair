@@ -91,8 +91,8 @@ assert "wrong code" in c.event("unpaired")["content"]
 # Decline
 e, f = Peer("E"), Peer("F")
 code = code_of(e.tool("pair_start", name="Erin")[0])
-f.tool("pair_join", code=code, name="Frank")
-e.event("pair_request")
+f.tool("pair_join", code=code)  # no name: server sends user@host · git name · git email
+assert "@" in e.event("pair_request")["meta"]["peer"]
 assert not e.tool("pair_reject")[1]
 assert "declined" in f.event("unpaired")["content"]
 

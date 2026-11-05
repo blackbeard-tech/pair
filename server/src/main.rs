@@ -85,8 +85,8 @@ fn cfg(name: &str) -> AppConfig<Value> {
 fn clean_name(s: &str) -> String {
     let n: String = s
         .chars()
-        .filter(|c| c.is_alphanumeric() || " .-_'".contains(*c))
-        .take(40)
+        .filter(|c| c.is_alphanumeric() || " .-_'@+,·".contains(*c))
+        .take(120)
         .collect();
     if n.trim().is_empty() {
         "peer".into()
@@ -107,6 +107,43 @@ fn clean_text(s: &str) -> String {
         .collect()
 }
 
+/// How we appear to the peer: user@host, then git user.name, then git user.email (whatever exists).
+fn identity() -> String {
+    let run = |cmd: &str, args: &[&str]| {
+        let mut c = std::process::Command::new(cmd);
+        c.args(args)
+            .stdin(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        #[cfg(windows)]
+        std::os::windows::process::CommandExt::creation_flags(&mut c, 0x0800_0000); // CREATE_NO_WINDOW
+        c.output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .filter(|s| !s.is_empty())
+    };
+    let user = std::env::var("USER").or_else(|_| std::env::var("USERNAME")).ok();
+    let host = std::env::var("COMPUTERNAME")
+        .ok()
+        .or_else(|| run("hostname", &[]))
+        .map(|h| h.split('.').next().unwrap_or_default().to_string());
+    let mut parts: Vec<String> = match (user, host) {
+        (Some(u), Some(h)) => vec![format!("{u}@{h}")],
+        (u, h) => u.or(h).into_iter().collect(),
+    };
+    parts.extend(run("git", &["config", "--get", "user.name"]));
+    parts.extend(run("git", &["config", "--get", "user.email"]));
+    clean_name(&parts.join(" · "))
+}
+
+/// Explicit display name from the tool call, else our identity.
+fn me(a: &Value) -> String {
+    match a["name"].as_str() {
+        Some(n) if !n.trim().is_empty() => clean_name(n),
+        _ => identity(),
+    }
+}
+
 fn a2a_text(text: &str) -> Value {
     let id = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
     json!({"kind": "message", "role": "agent", "messageId": format!("{id:x}"), "parts": [{"kind": "text", "text": text}]})
@@ -117,7 +154,7 @@ fn result_text(s: impl Into<String>, is_error: bool) -> Value {
 }
 
 fn tools() -> Value {
-    let name = json!({"type": "string", "description": "Your user's display name, shown to the other side (e.g. from git config user.name)"});
+    let name = json!({"type": "string", "description": "Optional override for how you appear to the other side. Leave unset: the default is user@host · git name · git email."});
     let trust = json!({"type": "string", "enum": ["read-only", "ask", "normal"], "default": "read-only",
         "description": "What the peer's requests may make you do without asking your user. Ask your user if unsure; default read-only."});
     json!([
@@ -156,7 +193,7 @@ fn call(p: &Value, st: &St, out: &Out) -> Value {
     };
     match (tool, phase) {
         ("pair_start", Phase::Idle) => {
-            let me = clean_name(a["name"].as_str().unwrap_or(""));
+            let me = me(a);
             let m = match async_io::block_on(MailboxConnection::create(cfg(&me), 2)) {
                 Ok(m) => m,
                 Err(e) => return result_text(format!("Could not reach the pairing relay: {e}"), true),
@@ -178,13 +215,7 @@ fn call(p: &Value, st: &St, out: &Out) -> Value {
                     true,
                 );
             };
-            start(
-                st,
-                out,
-                Side::Joiner(code),
-                clean_name(a["name"].as_str().unwrap_or("")),
-                trust,
-            );
+            start(st, out, Side::Joiner(code), me(a), trust);
             result_text(
                 format!(
                     "{BANNER}\nConnecting (trust: {trust}). You'll get a channel event when the other side approves or declines."
@@ -442,6 +473,11 @@ mod tests {
     fn sanitizes_peer_input() {
         assert_eq!(clean_name("<b>Sam</b>\u{202e}"), "bSamb");
         assert_eq!(clean_name("   "), "peer");
+        assert_eq!(
+            clean_name("d0d@desktop · Lloyd B · l+x@ex.com"),
+            "d0d@desktop · Lloyd B · l+x@ex.com"
+        );
+        assert!(!identity().is_empty());
         assert_eq!(clean_text("hi\u{202e}\u{7}\nthere"), "hi\nthere");
     }
 }
