@@ -1,7 +1,8 @@
 name: release
 # Tag-triggered only (git tag vX.Y.Z && git push origin vX.Y.Z).
 # Cost: one macOS job (bills 10x) builds both Mac targets; Windows is cross-built on Linux (1x).
-# After it runs: copy the release's checksums.txt into plugin/checksums.txt and commit.
+# After it runs: copy the release's checksums.txt into plugin/checksums.txt under a '# release vX.Y.Z' header,
+# bump plugin.json version, and commit. Plugin and binary versions are independent.
 on:
   push: { tags: ["v*"] }
 
@@ -51,12 +52,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - name: tag matches Cargo.toml and plugin.json versions
+      - name: tag matches server/Cargo.toml version
         env: { TAG: "${{ github.ref_name }}" }
         run: |
           cargo_v=$(sed -n 's/^version = "\(.*\)"/\1/p' server/Cargo.toml | head -1)
-          plugin_v=$(jq -r .version plugin/.claude-plugin/plugin.json)
-          [ "v$cargo_v" = "$TAG" ] && [ "v$plugin_v" = "$TAG" ] || { echo "::error::$TAG vs Cargo $cargo_v / plugin $plugin_v"; exit 1; }
+          [ "v$cargo_v" = "$TAG" ] || { echo "::error::$TAG vs Cargo $cargo_v"; exit 1; }
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with: { path: dist, merge-multiple: true }
       - working-directory: dist
