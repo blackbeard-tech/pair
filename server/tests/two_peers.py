@@ -73,6 +73,9 @@ if IDLE:
 assert not b.tool("send_to_peer", text="hello from bob\u202e")[1]
 msg = a.event("message")
 assert msg["content"] == "hello from bob" and msg["meta"]["trust"] == "read-only", msg
+inbox = a.tool("check_messages")[0]  # no-channel fallback: same events, queued
+assert "[pair_request]" in inbox and "hello from bob" in inbox and "State: Paired" in inbox, inbox
+assert "No new events" in a.tool("check_messages")[0]
 assert not a.tool("send_to_peer", text="hi bob")[1]
 msg = b.event("message")
 assert msg["content"] == "hi bob" and msg["meta"]["trust"] == "ask", msg
