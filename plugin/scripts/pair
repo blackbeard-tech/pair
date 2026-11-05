@@ -7,7 +7,9 @@ REPO=blackbeard-tech/pair
 root=$(cd "$(dirname "$0")/.." && pwd)
 VERSION=$(sed -n 's/^# release v\([0-9][0-9.]*\).*/\1/p' "$root/checksums.txt")  # binary release, independent of plugin version
 
-if [ -n "${PAIR_BIN:-}" ]; then exec "$PAIR_BIN"; fi  # dev override: a local build
+# Monitors don't get CLAUDE_PLUGIN_DATA in their env, so `pair watch <data>` passes it as an argument.
+if [ "${1:-}" = watch ] && [ -n "${2:-}" ]; then PAIR_DATA=$2; export PAIR_DATA; fi
+if [ -n "${PAIR_BIN:-}" ]; then exec "$PAIR_BIN" "$@"; fi  # dev override: a local build
 
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64) asset=pair-aarch64-apple-darwin ;;
@@ -33,4 +35,4 @@ if [ ! -x "$bin" ]; then
   chmod +x "$tmp"
   mv "$tmp" "$bin"
 fi
-exec "$bin"
+exec "$bin" "$@"

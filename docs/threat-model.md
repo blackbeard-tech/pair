@@ -51,6 +51,7 @@ other agent tools (P3) and remembered peers are out of scope.
 | T7 | **Compromised binary or dependency.** | Locked dependencies, cargo-deny/audit, osv-scanner, CodeQL, build provenance on releases, and a checksum check before first run. | Binaries are unsigned in the pilot (macOS signing available later). |
 | T8 | **Relay blocked or unavailable.** | Pairing fails cleanly with a message. | Corporate firewalls may block `ws://` on port 4000. A self-hosted `wss://` relay on port 443 is the fix (P2, possibly brought forward). |
 | T9 | **Stale or dropped pairing.** | Pairing is session-scoped. Nothing is persisted, and K is discarded on unpair or exit. A heartbeat every 4 idle minutes keeps the relay connection up (the spike saw drops between 5 and 15 idle minutes without it). | A dropped connection can't be resumed in the current library, so the user has to pair again. |
+| T10 | **Peer text at rest.** Without channels, events reach Claude through a plugin monitor that reads a per-session inbox file. | The file lives under the plugin data dir, keyed by Claude Code session ID, created owner-only (0600 on macOS). It is deleted when the session ends; leftovers older than a day are swept on the next start. | Readable by other processes running as the same user while the session is open. A crash can leave it for up to a day. |
 
 ## Owner decisions (2026-11-05)
 
