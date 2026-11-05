@@ -57,3 +57,13 @@ if command -v bd >/dev/null 2>&1; then
   if [ "$_bd_exit" -ne 0 ]; then exit "$_bd_exit"; fi
 fi
 # --- END BEADS INTEGRATION v1.3.0 ---
+
+# --- pair: never push Dolt refs to the public repo (beads Dolt data lives in private d0d55/pair-beads) ---
+case "$2" in
+  *d0d55/pair.git|*d0d55/pair)
+    if [ -n "$(git for-each-ref refs/dolt)" ]; then
+      echo >&2 "pair: local refs/dolt/* exist; refusing to push to public $2. Delete them: git for-each-ref --format='delete %(refname)' refs/dolt | git update-ref --stdin"
+      exit 1
+    fi ;;
+esac
+if command -v prek >/dev/null 2>&1; then prek run --all-files || exit 1; fi

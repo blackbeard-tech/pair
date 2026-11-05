@@ -72,3 +72,9 @@
 # - github.token    → use GITHUB_TOKEN env var instead
 
 sync.remote: "git@github.com:d0d55/pair-beads.git"
+dolt:
+    auto-push: true
+export:
+    auto: false
+federation:
+    remote: "git@github.com:d0d55/pair-beads.git"
