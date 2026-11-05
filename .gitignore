@@ -1,0 +1,27 @@
+# Internal drafts: never in the public repo
+references/
+
+# beads: Dolt data syncs to a separate PRIVATE repo, never this one
+.beads/dolt/
+.beads/*.jsonl
+.beads/*.db*
+.beads/*.lock
+.beads/*.log
+
+# Python / tooling
+__pycache__/
+*.pyc
+.venv/
+.ruff_cache/
+.pytest_cache/
+dist/
+.env
+.env.*
+.DS_Store
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
+*.gate.lock*
