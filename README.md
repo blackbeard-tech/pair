@@ -8,6 +8,16 @@ Built by [Blackbeard Technologies](https://blackbeard.tech).
 
 Status: proof of concept. Work is tracked in beads (`bd ready`); see [SECURITY.md](SECURITY.md) for reporting issues.
 
+## Install (Claude Code)
+
+```
+/plugin install pair --marketplace d0d55/pair
+```
+
+Channels are a research preview, so start Claude Code with
+`claude --dangerously-load-development-channels plugin:pair@bbtech`, then run `/pair:pair`
+(gives you a code) or `/pair:pair 7-amber-falcon` (joins a colleague). macOS and Windows.
+
 ## Dev setup
 
 ```sh

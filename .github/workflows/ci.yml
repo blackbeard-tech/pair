@@ -47,6 +47,11 @@ jobs:
       - uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
         with: { advanced-security: false }
 
+      - name: claude plugin validate (marketplace + plugin)
+        run: |
+          npx --yes @anthropic-ai/claude-code@2.1.309 plugin validate . --strict
+          npx --yes @anthropic-ai/claude-code@2.1.309 plugin validate plugin --strict
+
       # GitHub can't hide a ref namespace in a public repo; beads' Dolt data lives in a
       # separate private repo. Fail loudly if refs/dolt/* ever lands here.
       - name: no refs/dolt in this repo

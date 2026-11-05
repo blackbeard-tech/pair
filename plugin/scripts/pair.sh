@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Starts the pair channel server (stdout is the MCP transport: all messages go to stderr).
+# First run fetches this version's release binary and verifies it against checksums.txt,
+# which is pinned in the plugin commit you installed.
+set -euo pipefail
+REPO=d0d55/pair
+root=$(cd "$(dirname "$0")/.." && pwd)
+VERSION=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$root/.claude-plugin/plugin.json")
+
+if [ -n "${PAIR_BIN:-}" ]; then exec "$PAIR_BIN"; fi  # dev override: a local build
+
+case "$(uname -s)-$(uname -m)" in
+  Darwin-arm64) asset=pair-aarch64-apple-darwin ;;
+  Darwin-x86_64) asset=pair-x86_64-apple-darwin ;;
+  MINGW*|MSYS*|CYGWIN*) asset=pair-x86_64-pc-windows-gnu.exe ;;
+  *) echo "pair: $(uname -s) $(uname -m) is not supported yet (macOS and Windows only)" >&2; exit 1 ;;
+esac
+
+dir="${PAIR_DATA:-$HOME/.cache/pair}/$VERSION"
+bin="$dir/$asset"
+if [ ! -x "$bin" ]; then
+  want=$(awk -v a="$asset" '$2 == a { print $1 }' "$root/checksums.txt")
+  [ -n "$want" ] || { echo "pair: no pinned checksum for $asset v$VERSION; update the plugin" >&2; exit 1; }
+  mkdir -p "$dir"
+  tmp="$bin.part"
+  # gh first: works for private repos with your gh login; plain HTTPS once public.
+  if ! { command -v gh >/dev/null && gh release download "v$VERSION" -R "$REPO" -p "$asset" -O "$tmp" --clobber >&2 2>&1; }; then
+    curl -fsSL "https://github.com/$REPO/releases/download/v$VERSION/$asset" -o "$tmp" \
+      || { echo "pair: could not download $asset v$VERSION" >&2; exit 1; }
+  fi
+  got=$( (sha256sum "$tmp" 2>/dev/null || shasum -a 256 "$tmp") | cut -d' ' -f1)
+  if [ "$got" != "$want" ]; then rm -f "$tmp"; echo "pair: checksum mismatch for $asset; refusing to run" >&2; exit 1; fi
+  chmod +x "$tmp"
+  mv "$tmp" "$bin"
+fi
+exec "$bin"

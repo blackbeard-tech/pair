@@ -1,0 +1,1 @@
+# sha256  asset  (filled from the v0.1.0 release; the launcher refuses assets not listed here)
