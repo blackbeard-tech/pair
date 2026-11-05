@@ -11,6 +11,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+// Protocol namespace on the relay, not a URL: changing it breaks pairing with released binaries.
 const APP_ID: &str = "github.com/d0d55/pair/v1";
 const RELAY: &str = "ws://relay.magic-wormhole.io:4000/v1";
 const CODE_TTL: Duration = Duration::from_secs(120);

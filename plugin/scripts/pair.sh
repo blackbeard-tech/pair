@@ -3,7 +3,7 @@
 # First run fetches this version's release binary and verifies it against checksums.txt,
 # which is pinned in the plugin commit you installed.
 set -euo pipefail
-REPO=d0d55/pair
+REPO=blackbeard-tech/pair
 root=$(cd "$(dirname "$0")/.." && pwd)
 VERSION=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$root/.claude-plugin/plugin.json")
 

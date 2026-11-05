@@ -60,7 +60,7 @@ fi
 
 # --- pair: never push Dolt refs to the public repo (beads Dolt data lives in private d0d55/pair-beads) ---
 case "$2" in
-  *d0d55/pair.git|*d0d55/pair)
+  *blackbeard-tech/pair.git|*blackbeard-tech/pair|*d0d55/pair.git|*d0d55/pair)
     if [ -n "$(git for-each-ref refs/dolt)" ]; then
       echo >&2 "pair: local refs/dolt/* exist; refusing to push to public $2. Delete them: git for-each-ref --format='delete %(refname)' refs/dolt | git update-ref --stdin"
       exit 1
