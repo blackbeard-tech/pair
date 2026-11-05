@@ -6,3 +6,9 @@ updates:
     cooldown: { default-days: 7 } # don't adopt releases younger than a week
     groups:
       actions: { patterns: ["*"] }
+  - package-ecosystem: cargo
+    directories: [/server, /spike/ladder]
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
+    groups:
+      cargo: { patterns: ["*"] }

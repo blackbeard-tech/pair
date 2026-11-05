@@ -88,3 +88,27 @@ jobs:
         run: |
           refs=$(git ls-remote "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" 'refs/dolt/*')
           if [ -n "$refs" ]; then echo "::error::refs/dolt found: $refs"; exit 1; fi
+
+  rust:
+    name: rust (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest] # Linux later
+    runs-on: ${{ matrix.os }}
+    permissions: { contents: read }
+    defaults:
+      run: { shell: bash, working-directory: server }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - run: rustup toolchain install stable --profile minimal -c clippy,rustfmt && rustup default stable
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --release -- -D warnings
+      - run: cargo test --locked
+      - run: cargo build --locked --release
+      - name: e2e over public relay
+        run: |
+          PY=$(command -v python3 || command -v python)
+          BIN=target/release/pair; [ "$RUNNER_OS" = Windows ] && BIN=$BIN.exe
+          "$PY" -I tests/two_peers.py "$BIN"

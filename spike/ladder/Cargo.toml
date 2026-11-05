@@ -1,0 +1,12 @@
+# Throwaway spike for pair-cvh.1: does a magic-wormhole mailbox session survive long idle gaps?
+[package]
+name = "ladder"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+
+[dependencies]
+magic-wormhole = { version = "=0.8.1", default-features = false }
+async-io = "2"
+serde_json = "1"

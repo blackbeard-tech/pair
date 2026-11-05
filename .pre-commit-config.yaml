@@ -10,6 +10,7 @@ repos:
       - id: check-json
       - id: detect-private-key
       - id: end-of-file-fixer
+        exclude: ^(\.beads/|\.claude/settings\.json$)
       - id: trailing-whitespace
   - repo: https://github.com/gitleaks/gitleaks
     rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e # v8.30.1
@@ -23,3 +24,11 @@ repos:
     rev: 06a39750ec31860bb44f2acf67182c40016cd1e7 # v1.32.0
     hooks:
       - id: zizmor
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt --manifest-path server/Cargo.toml --check
+        language: system
+        files: ^server/.*\.rs$
+        pass_filenames: false
