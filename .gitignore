@@ -2,7 +2,7 @@
 references/
 
 # beads: Dolt data syncs to a separate PRIVATE repo, never this one
-.beads/dolt/
+.beads/embeddeddolt/
 .beads/*.jsonl
 .beads/*.db*
 .beads/*.lock
