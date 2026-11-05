@@ -11,7 +11,8 @@ Status: proof of concept. Work is tracked in beads (`bd ready`); see [SECURITY.m
 ## Install (Claude Code)
 
 ```
-/plugin install pair --marketplace d0d55/pair
+/plugin marketplace add blackbeard-tech/marketplace
+/plugin install pair@bbtech
 ```
 
 Channels are a research preview, so start Claude Code with
