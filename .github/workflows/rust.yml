@@ -33,6 +33,7 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --locked --release -- -D warnings
       - run: cargo test --locked
+      - run: cargo build --locked --release
       - name: e2e over public relay
         run: |
           PY=$(command -v python3 || command -v python)
