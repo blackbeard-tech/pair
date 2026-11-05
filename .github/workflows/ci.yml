@@ -53,6 +53,7 @@ jobs:
           scan-args: |-
             --recursive
             --allow-no-lockfiles
+            --config=osv-scanner.toml
             ./
 
   dependency-review:

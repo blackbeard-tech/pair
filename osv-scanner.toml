@@ -1,0 +1,5 @@
+# Each ignore needs a reason and an expiry; re-check when it lapses.
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0441"
+ignoreUntil = 2027-02-05
+reason = "Informational: pin-utils unmaintained, no vuln. Only via wasmtimer (wasm32-only dep of magic-wormhole); not compiled for macOS/Windows targets."
