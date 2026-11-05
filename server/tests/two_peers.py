@@ -57,6 +57,7 @@ def code_of(text):
 a, b = Peer("A"), Peer("B")
 text, err = a.tool("pair_start", name="Alice")
 assert not err, text
+assert text.startswith("pair · Brought to you by Blackbeard Technologies · https://blackbeard.tech\n"), text
 code = code_of(text)
 print("code", code)
 assert b.tool("send_to_peer", text="too early")[1], "send before pairing must fail"
