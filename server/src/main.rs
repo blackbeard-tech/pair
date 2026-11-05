@@ -102,6 +102,15 @@ fn monitor_alive(dir: &Path) -> bool {
         .is_some_and(|age| age < WATCH_FRESH)
 }
 
+/// Bump a file's modified time. Rewriting an empty file doesn't do that on Windows.
+fn touch(path: &Path) -> std::io::Result<()> {
+    std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?
+        .set_modified(SystemTime::now())
+}
+
 /// Append to a file only this user can read (peer text at rest).
 fn append_private(path: &Path, line: &str) -> std::io::Result<()> {
     let mut o = std::fs::OpenOptions::new();
@@ -115,12 +124,14 @@ fn append_private(path: &Path, line: &str) -> std::io::Result<()> {
 /// else as a channel notification. Always queued for check_messages too.
 fn push(out: &Out, meta: Value, content: &str) {
     let ev = json!({"meta": meta, "content": content});
-    let via_monitor = SESSION_DIR
-        .get()
-        .and_then(|d| d.as_deref())
-        .filter(|d| monitor_alive(d))
-        .is_some_and(|d| append_private(&d.join("inbox.jsonl"), &ev.to_string()).is_ok());
-    if !via_monitor {
+    // Always hand events to the monitor (it prints whatever lands in the inbox while it runs).
+    // Also send a channel notification only if no monitor looks alive: a wrong guess can then at
+    // worst duplicate an event (monitor + channel flag), never lose one.
+    let dir = SESSION_DIR.get().and_then(|d| d.as_deref());
+    if let Some(d) = dir {
+        let _ = append_private(&d.join("inbox.jsonl"), &ev.to_string());
+    }
+    if !dir.is_some_and(monitor_alive) {
         emit(
             out,
             &json!({"jsonrpc": "2.0", "method": "notifications/claude/channel",
@@ -164,7 +175,7 @@ fn watch(data: Option<String>) {
     let mut beat = Instant::now() - WATCH_FRESH;
     loop {
         if beat.elapsed() >= Duration::from_secs(10) {
-            let _ = std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&alive, b""));
+            let _ = std::fs::create_dir_all(&dir).and_then(|_| touch(&alive));
             beat = Instant::now();
         }
         if let Ok(bytes) = std::fs::read(&inbox) {
@@ -645,6 +656,17 @@ mod tests {
         let src = include_str!("main.rs");
         let needle = ["claude/channel", "/permission\""].concat();
         assert!(!src.contains(&needle));
+    }
+
+    #[test]
+    fn heartbeat_bumps_mtime_even_for_empty_file() {
+        let p = std::env::temp_dir().join(format!("pair-touch-{}", std::process::id()));
+        let old = SystemTime::now() - Duration::from_secs(3600);
+        std::fs::File::create(&p).unwrap().set_modified(old).unwrap();
+        touch(&p).unwrap();
+        let age = std::fs::metadata(&p).unwrap().modified().unwrap().elapsed().unwrap();
+        let _ = std::fs::remove_file(&p);
+        assert!(age < WATCH_FRESH, "heartbeat did not refresh mtime");
     }
 
     #[test]
