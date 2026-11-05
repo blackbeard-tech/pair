@@ -14,9 +14,9 @@ BIN = sys.argv[1]
 
 
 class Peer:
-    def __init__(self, label):
+    def __init__(self, label, env=None):
         self.label, self.n = label, 0
-        self.p = subprocess.Popen([BIN], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        self.p = subprocess.Popen([BIN], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
         self.q = queue.Queue()
         threading.Thread(target=self._read, daemon=True).start()
         r = self.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t"}})
@@ -98,5 +98,37 @@ f.tool("pair_join", code=code)  # no name: server sends user@host · git name ·
 assert "@" in e.event("pair_request")["meta"]["peer"]
 assert not e.tool("pair_reject")[1]
 assert "declined" in f.event("unpaired")["content"]
+
+# Monitor path (works without channels): with a live `pair watch` for G's session, G's events go to
+# its session inbox and come out of the watcher as single lines, not as channel notifications.
+import os, tempfile, time
+data = tempfile.mkdtemp()
+genv = dict(os.environ, PAIR_DATA=data, CLAUDE_CODE_SESSION_ID="test-session-g")
+sdir = os.path.join(data, "sessions", "test-session-g")
+w = subprocess.Popen([BIN, "watch", data], env=genv, stdout=subprocess.PIPE, text=True)
+wq = queue.Queue()
+threading.Thread(target=lambda: [wq.put(l.rstrip("\n")) for l in w.stdout], daemon=True).start()
+time.sleep(1)  # first heartbeat
+g, h = Peer("G", env=genv), Peer("H")
+code = code_of(g.tool("pair_start", name="Gina")[0])
+h.tool("pair_join", code=code, name="Hal")
+line = wq.get(timeout=30)
+print("  watch <-", line[:90])
+assert line.startswith('pair pair_request from "Hal": '), line
+assert not g.tool("pair_accept")[1]
+h.event("paired")
+assert not h.tool("send_to_peer", text="line1\nline2")[1]
+line = wq.get(timeout=30)
+print("  watch <-", line)
+assert line == 'pair message from "Hal" (trust: read-only): "line1\\nline2"', line
+assert not any(m.get("method") == "notifications/claude/channel" for m in list(g.q.queue)), "G got a channel notification too"
+if os.name != "nt":
+    assert os.stat(os.path.join(sdir, "inbox.jsonl")).st_mode & 0o777 == 0o600
+g.tool("unpair")
+h.event("unpaired")
+g.p.stdin.close()
+g.p.wait(10)
+assert not os.path.exists(sdir), "session dir not removed at session end"
+w.kill()
 
 print("PASS")
