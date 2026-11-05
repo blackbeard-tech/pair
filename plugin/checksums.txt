@@ -1,1 +1,4 @@
-# sha256  asset  (filled from the v0.1.0 release; the launcher refuses assets not listed here)
+# sha256  asset  (v0.1.0; the launcher refuses assets not listed here)
+f3878198ff1c7a025f2e2f2b7d9e8167201e8cff8529d1f5f1765855fd568847  pair-aarch64-apple-darwin
+82e184b0ac759942d5a6e8869752778cf4ae95d3e2b1c44ba75850656b025d96  pair-x86_64-apple-darwin
+10071da63c407cd7dbcd52020594da2e92ae7c955e9cd9da2acc4e49cdd72a80  pair-x86_64-pc-windows-gnu.exe
