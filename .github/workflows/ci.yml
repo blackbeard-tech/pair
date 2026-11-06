@@ -47,6 +47,11 @@ jobs:
       - uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
         with: { advanced-security: false }
 
+      - name: CHANGELOG has a section for the server version (or Unreleased)
+        run: |
+          v=$(sed -n 's/^version = "\(.*\)"/\1/p' server/Cargo.toml | head -1)
+          grep -qE "^## ($v|Unreleased)( |$)" CHANGELOG.md || { echo "::error::CHANGELOG.md needs a '## $v' (or '## Unreleased') section"; exit 1; }
+
       - name: plugin version == pinned binary release
         run: |
           plugin_v=$(jq -r .version plugin/.claude-plugin/plugin.json)

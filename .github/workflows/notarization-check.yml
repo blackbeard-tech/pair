@@ -61,7 +61,7 @@ jobs:
             Accepted)
               now="Notarization: accepted by Apple."
               mkdir -p notarized && echo "$info" > notarized/notarization.json
-              gh release download "$TAG" --repo "$REPO" -p 'pair-*-apple-darwin' -D notarized ;;
+              gh release download "$TAG" --repo "$REPO" -p 'pair-macos-*' -D notarized ;;
             Invalid|Rejected)
               reason=$(xcrun notarytool log "$id" --key "$key" --key-id "$KEY_ID" --issuer "$ISSUER_ID" \
                 | jq -r '[.statusSummary, (.issues // [] | .[] | "\(.path): \(.message)")] | map(select(. != null)) | join("; ")')

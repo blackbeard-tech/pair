@@ -7,7 +7,7 @@ try {
   $root = Split-Path -Parent $PSScriptRoot
   $sums = Get-Content (Join-Path $root 'checksums.txt')
   $version = ($sums | Select-String '^# release v([0-9.]+)').Matches[0].Groups[1].Value  # pinned release (CI keeps it equal to the plugin version)
-  $asset = 'pair-x86_64-pc-windows-gnu.exe'  # also runs on Windows on Arm via x64 emulation
+  $asset = 'pair-windows-x64.exe'  # also runs on Windows on Arm via x64 emulation
   $data = if ($env:PAIR_DATA) { $env:PAIR_DATA } else { Join-Path $env:LOCALAPPDATA 'pair' }
   $bin = Join-Path (Join-Path $data $version) $asset
   if (-not (Test-Path $bin)) {

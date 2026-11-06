@@ -31,10 +31,10 @@ jobs:
         with: { persist-credentials: false }
       - run: rustup toolchain install stable --profile minimal -t aarch64-apple-darwin,x86_64-apple-darwin && rustup default stable
       - run: |
-          for t in aarch64-apple-darwin x86_64-apple-darwin; do
-            cargo build --locked --release --target "$t"
-            cp "target/$t/release/pair" "../pair-$t"
-          done
+          cargo build --locked --release --target aarch64-apple-darwin
+          cargo build --locked --release --target x86_64-apple-darwin
+          cp target/aarch64-apple-darwin/release/pair ../pair-macos-arm64
+          cp target/x86_64-apple-darwin/release/pair ../pair-macos-x64
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { name: macos-unsigned, path: "pair-*", if-no-files-found: error }
 
@@ -70,7 +70,7 @@ jobs:
             codesign --force --options runtime --timestamp --identifier tech.blackbeard.pair --sign "$identity" "$f"
             codesign --verify --strict --verbose=2 "$f"
           done
-          codesign -dvv pair-aarch64-apple-darwin 2>&1 | grep -E '^(Authority|TeamIdentifier|Timestamp)='
+          codesign -dvv pair-macos-arm64 2>&1 | grep -E '^(Authority|TeamIdentifier|Timestamp)='
       - name: remove signing material
         if: always()
         run: |
@@ -111,20 +111,21 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/notary.p8"
 
+  # Native MSVC build with a static C runtime: no package downloads, no runtime DLLs needed.
   windows:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 20
     permissions: { contents: read }
     defaults:
-      run: { working-directory: server }
+      run: { shell: bash, working-directory: server }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - run: sudo apt-get update -q && sudo apt-get install -yq --no-install-recommends gcc-mingw-w64-x86-64
-      - run: rustup toolchain install stable --profile minimal -t x86_64-pc-windows-gnu && rustup default stable
-      - run: |
-          cargo build --locked --release --target x86_64-pc-windows-gnu
-          cp target/x86_64-pc-windows-gnu/release/pair.exe ../pair-x86_64-pc-windows-gnu.exe
+      - run: rustup toolchain install stable --profile minimal -t x86_64-pc-windows-msvc && rustup default stable
+      - env: { RUSTFLAGS: "-C target-feature=+crt-static" }
+        run: |
+          cargo build --locked --release --target x86_64-pc-windows-msvc
+          cp target/x86_64-pc-windows-msvc/release/pair.exe ../pair-windows-x64.exe
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { name: windows, path: "pair-*", if-no-files-found: error }
 
@@ -134,8 +135,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - { runner: ubuntu-latest, target: x86_64-unknown-linux-musl }
-          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl }
+          - { runner: ubuntu-latest, target: x86_64-unknown-linux-musl, asset: pair-linux-x64 }
+          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, asset: pair-linux-arm64 }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     permissions: { contents: read }
@@ -144,12 +145,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - env: { TARGET: "${{ matrix.target }}" }
+      - env: { TARGET: "${{ matrix.target }}", ASSET: "${{ matrix.asset }}" }
         run: |
           rustup toolchain install stable --profile minimal -t "$TARGET" && rustup default stable
           cargo build --locked --release --target "$TARGET"
-          cp "target/$TARGET/release/pair" "../pair-$TARGET"
-          file "../pair-$TARGET"
+          cp "target/$TARGET/release/pair" "../$ASSET"
+          file "../$ASSET"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { name: "linux-${{ matrix.target }}", path: "pair-*", if-no-files-found: error }
 
@@ -176,27 +177,36 @@ jobs:
         with: { name: "${{ needs.macos-sign.result == 'success' && 'macos-signed' || 'macos-unsigned' }}", path: dist }
       - working-directory: dist
         run: sha256sum pair-* | tee checksums.txt
+      - name: release notes (CHANGELOG section + .github/release-notes.md)
+        env:
+          TAG: ${{ github.ref_name }}
+          SIGNED: ${{ needs.macos-sign.result == 'success' }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          tag = os.environ["TAG"]; v = tag[1:]
+          log = open("CHANGELOG.md").read()
+          def section(name):
+              m = re.search(r"^## " + re.escape(name) + r"\b[^\n]*\n(.*?)(?=^## |\Z)", log, re.M | re.S)
+              return m.group(1).strip() if m else ""
+          new = section(v) or ("-" in tag and section("Unreleased"))
+          if not new:
+              raise SystemExit(f"::error::CHANGELOG.md has no '## {v}' section")
+          mac = ("macOS: signed (Developer ID). Notarization: in progress." if os.environ["SIGNED"] == "true"
+                 else "macOS: UNSIGNED (signing failed: check the certificate). Notarization: not attempted.")
+          t = open(".github/release-notes.md").read()
+          open(os.environ["RUNNER_TEMP"] + "/notes.md", "w").write(
+              t.replace("{{WHATSNEW}}", new).replace("{{MACOS}}", mac).replace("{{TAG}}", tag))
+          PY
       - name: create release
         working-directory: dist
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
-          SIGNED: ${{ needs.macos-sign.result == 'success' }}
         run: |
           pre=""; case "$TAG" in *-*) pre=--prerelease ;; esac  # e.g. v0.1.7-rc.1: test builds, never pinned
-          if [ "$SIGNED" = true ]; then
-            mac="macOS: signed (Developer ID). Notarization: in progress."
-          else
-            mac="macOS: UNSIGNED (signing failed: check the certificate). Notarization: not attempted."
-            echo "::warning::publishing unsigned macOS binaries"
-          fi
-          gh release create "$TAG" pair-* checksums.txt $pre --repo "$REPO" --title "$TAG" --notes "Binaries for the pair plugin.
-
-          - $mac
-          - Windows, Linux: unsigned.
-
-          Verify against checksums.txt; the plugin pins these hashes in plugin/checksums.txt."
+          gh release create "$TAG" pair-* checksums.txt $pre --repo "$REPO" --title "pair $TAG" --notes-file "$RUNNER_TEMP/notes.md"
 
   # Records how notarization ended. The published files are unchanged either way.
   notes:

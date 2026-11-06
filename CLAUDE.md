@@ -107,7 +107,8 @@ then `twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1`): use it to te
 
 ## Releasing (each step needs the owner's go)
 
-1. Bump `server/Cargo.toml` version; commit.
+1. Bump `server/Cargo.toml` version and rename CHANGELOG.md's `## Unreleased` to `## X.Y.Z (date)`; commit.
+   The release notes are that section plus `.github/release-notes.md`.
 2. `git tag vX.Y.Z` and push the tag: `release.yml` builds macOS (both arches) and Windows and publishes.
    Stages save their own artifacts: macos-unsigned (build) -> macos-signed (sign) -> macos-notarized (saved by
    notarization-check.yml once Apple's ticket exists), plus windows. Publishing waits only for build and
