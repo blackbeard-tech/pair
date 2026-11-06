@@ -28,11 +28,14 @@ Runs on macOS (Apple Silicon and Intel) and Windows (x64). Linux is not supporte
 
 ## How messages reach Claude
 
-| Session | Delivery |
+| Where you run Claude Code | Delivery |
 |---|---|
-| Interactive Claude Code | Live, through the plugin's monitor. No flags needed. |
-| Started with `claude --dangerously-load-development-channels plugin:pair@bbtech` | Live, as a channel. Optional. |
-| Non-interactive (`claude -p`, Agent SDK) | Claude polls with the `check_messages` tool. |
+| Terminal (`claude`) | Live, through the plugin's monitor. No flags needed. |
+| Claude desktop app (Code tab), VS Code and other IDE extensions | These don't start plugin monitors. When you pair, Claude is told so and starts a background listener (`pair wait`); it wakes Claude on every event and restarts after each one. Live while the session is open. |
+| Terminal with `--dangerously-load-development-channels plugin:pair@bbtech` | Live, as a channel. Optional. |
+| Non-interactive (`claude -p`, Agent SDK scripts) | Claude polls with the `check_messages` tool. |
+
+`pair_start` and `pair_join` always say which of these is active, so a session never waits silently.
 
 ## Safety
 
@@ -55,7 +58,9 @@ privately as described in [SECURITY.md](SECURITY.md).
 Pilot. Known limitations:
 
 - Binaries are unsigned. Each is checked against a checksum pinned in the plugin before it runs.
-- The public relay uses `ws://` on port 4000, which some corporate networks block.
+- The public relay uses `ws://` on port 4000, which some corporate networks block, and it occasionally stalls;
+  when it does, the pairing ends with a clear message rather than hanging. A self-hosted relay is planned.
+- Messages are limited to 16 KB and files to 5 MB.
 - Pairing lasts one session. A dropped connection means pairing again.
 - The trust level is an instruction to Claude, not yet enforced by a hook.
 

@@ -150,7 +150,9 @@ wq = queue.Queue()
 threading.Thread(target=lambda: [wq.put(l.rstrip("\n")) for l in w.stdout], daemon=True).start()
 time.sleep(1)  # first heartbeat
 g, h = Peer("G", env=genv), Peer("H")
-code = code_of(g.tool("pair_start", name="Gina")[0])
+text = g.tool("pair_start", name="Gina")[0]
+assert "Live delivery: active" in text, text
+code = code_of(text)
 h.tool("pair_join", code=code, name="Hal")
 line = wq.get(timeout=30)
 print("  watch <-", line[:90])
@@ -170,5 +172,35 @@ g.p.stdin.close()
 g.p.wait(10)
 assert not os.path.exists(sdir), "session dir not removed at session end"
 w.kill()
+
+# No monitor (desktop app / IDE hosts): pair_start says so and hands Claude a `pair wait` command that
+# exits with the next event(s); nothing sent while no wait is running is lost.
+import re, shlex
+kenv = dict(os.environ, PAIR_DATA=tempfile.mkdtemp(), CLAUDE_CODE_SESSION_ID="test-session-k")
+k, l = Peer("K", env=kenv), Peer("L")
+text = k.tool("pair_start", name="Kim")[0]
+assert "Live delivery: NOT running" in text, text
+cmd = shlex.split(re.search(r'(".+?" wait ".+?")', text).group(1))
+def wait_once(timeout=30):
+    out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout).stdout.strip().splitlines()
+    print("  wait ->", [o[:70] for o in out])
+    return out
+waiter = threading.Thread(target=lambda: setattr(waiter, "out", wait_once()))
+waiter.start()
+l.tool("pair_join", code=code_of(text), name="Lou")
+waiter.join(40)
+assert waiter.out and waiter.out[0].startswith('pair pair_request from "Lou"'), waiter.out
+assert not k.tool("pair_accept")[1]
+l.event("paired")
+assert not l.tool("send_to_peer", text="one")[1]
+assert not l.tool("send_to_peer", text="two")[1]
+time.sleep(3)  # both land while no wait is running
+out = wait_once()
+assert [o.rsplit(": ", 1)[1] for o in out] == ['"one"', '"two"'], out
+text, err = k.tool("send_to_peer", text="hi")
+assert not err and "Nothing is listening" in text, text
+assert l.event("message")["content"] == "hi"
+k.tool("unpair")
+l.event("unpaired")
 
 print("PASS")

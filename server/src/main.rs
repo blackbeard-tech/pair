@@ -20,11 +20,15 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 const APP_ID: &str = "blackbeard.tech/pair/v1";
 const RELAY: &str = "ws://relay.magic-wormhole.io:4000/v1";
 const CODE_TTL: Duration = Duration::from_secs(120);
-const MAX_TEXT: usize = 64 * 1024;
+/// Keep every relay frame small: frames of ~130 KB (encrypted + hex) intermittently hung the sender on
+/// relay.magic-wormhole.io; ~22-35 KB frames never did. Text 16 KB, file chunks 8 KB.
+const MAX_TEXT: usize = 16 * 1024;
+/// A send that hasn't been acknowledged by the relay in this long ends the pairing instead of hanging.
+const SEND_TIMEOUT: Duration = Duration::from_secs(30);
 /// ponytail: files ride the mailbox (relay stores them for the pairing's life), so keep them small.
 /// Bigger files want magic-wormhole transit (crate feature `transit`, relay port 4001).
 const MAX_FILE: usize = 5 * 1024 * 1024;
-const FILE_CHUNK: usize = 48 * 1024;
+const FILE_CHUNK: usize = 8 * 1024;
 /// Received files are kept this long, then swept.
 const KEEP_RECEIVED: Duration = Duration::from_secs(7 * 86_400);
 /// Spike pair-cvh.1: relay connection survived 5 min idle, died by 15 (crate sends no keepalive).
@@ -106,12 +110,30 @@ fn session_dir(data: Option<String>) -> Option<PathBuf> {
     (!sid.is_empty()).then(|| Path::new(&data).join("sessions").join(sid))
 }
 
-fn monitor_alive(dir: &Path) -> bool {
-    std::fs::metadata(dir.join("watch.alive"))
+fn fresh(path: &Path) -> bool {
+    std::fs::metadata(path)
         .and_then(|m| m.modified())
         .ok()
         .and_then(|t| t.elapsed().ok())
         .is_some_and(|age| age < WATCH_FRESH)
+}
+
+/// The plugin monitor (`pair watch`) is running: events arrive by themselves.
+fn monitor_alive(dir: &Path) -> bool {
+    fresh(&dir.join("watch.alive"))
+}
+
+/// Something is listening right now: the plugin monitor, or a `pair wait` Claude started.
+fn listening(dir: &Path) -> bool {
+    monitor_alive(dir) || fresh(&dir.join("wait.alive"))
+}
+
+/// Removes `pair wait`'s heartbeat when it exits, so "nobody is listening" shows at once.
+struct RemoveOnDrop(PathBuf);
+impl Drop for RemoveOnDrop {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
 }
 
 /// Bump a file's modified time. Rewriting an empty file doesn't do that on Windows.
@@ -360,6 +382,85 @@ fn watch_line(e: &Value) -> String {
     )
 }
 
+/// Complete inbox lines after `offset`, and the offset just past them. Restarts from 0 if the file shrank.
+fn read_new(inbox: &Path, offset: u64) -> (Vec<Value>, u64) {
+    let Ok(bytes) = std::fs::read(inbox) else {
+        return (vec![], offset);
+    };
+    let offset = if (bytes.len() as u64) < offset { 0 } else { offset };
+    let new = &bytes[offset as usize..];
+    let complete = new.iter().rposition(|b| *b == b'\n').map_or(0, |i| i + 1);
+    let events = String::from_utf8_lossy(&new[..complete])
+        .lines()
+        .filter_map(|l| serde_json::from_str(l).ok())
+        .collect();
+    (events, offset + complete as u64)
+}
+
+/// `pair wait <session dir>`: for hosts where plugin monitors don't run (desktop app, IDE extensions).
+/// Claude runs it as a background command; it blocks until there is something new in the inbox,
+/// prints it, records how far it got, and exits, which wakes Claude. Claude then runs it again.
+fn wait(dir: &Path) {
+    let (inbox, alive, cursor) = (dir.join("inbox.jsonl"), dir.join("wait.alive"), dir.join("wait.offset"));
+    let _cleanup = RemoveOnDrop(alive.clone());
+    let mut offset = std::fs::read_to_string(&cursor)
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0);
+    let mut beat = Instant::now() - WATCH_FRESH;
+    while dir.is_dir() {
+        // ponytail: 0.5s file polling; fine for chat-speed events, swap for fs notifications if it ever matters
+        if beat.elapsed() >= Duration::from_secs(10) {
+            let _ = touch(&alive);
+            beat = Instant::now();
+        }
+        let (events, next) = read_new(&inbox, offset);
+        offset = next;
+        if !events.is_empty() {
+            for e in &events {
+                println!("{}", watch_line(e));
+            }
+            let _ = std::fs::write(&cursor, offset.to_string());
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    // Session dir removed: the pair server exited with the session. Exit quietly.
+}
+
+/// How this session receives events, for pair_start / pair_join / send results.
+fn delivery_note() -> String {
+    let Some(dir) = SESSION_DIR.get().and_then(|d| d.as_deref()) else {
+        return "Live delivery: not available in this session; call check_messages to see replies.".into();
+    };
+    if monitor_alive(dir) {
+        return "Live delivery: active (events will arrive by themselves).".into();
+    }
+    if fresh(&dir.join("wait.alive")) {
+        return "Live delivery: through the background pair wait you started (running now). \
+                When it finishes, handle its output and run it again."
+            .into();
+    }
+    let exe = std::env::current_exe()
+        .map(|p| p.display().to_string().replace('\\', "/"))
+        .unwrap_or_else(|_| "pair".into());
+    let dir = dir.display().to_string().replace('\\', "/");
+    format!(
+        "Live delivery: NOT running in this session (this app doesn't start plugin monitors). Tell your user, then start it now: \
+        run this as a background command (Bash with run_in_background; in PowerShell prefix it with &): \"{exe}\" wait \"{dir}\" \
+        It finishes when something arrives; its output is the event(s), with the same meaning and rules as monitor events. \
+        Handle them, then run the same command again in the background straight away, every time, for as long as you are paired."
+    )
+}
+
+/// Appended to send results: silent while something is listening, otherwise the start-listening instructions.
+fn listener_reminder() -> String {
+    match SESSION_DIR.get().and_then(|d| d.as_deref()) {
+        Some(d) if listening(d) => String::new(),
+        _ => format!("\nNothing is listening for the reply. {}", delivery_note()),
+    }
+}
+
 /// `pair watch <data dir>`: run as a Claude Code plugin monitor. Heartbeats so the server routes
 /// events here, and prints each new inbox event as one line.
 fn watch(data: Option<String>) {
@@ -378,21 +479,12 @@ fn watch(data: Option<String>) {
             let _ = std::fs::create_dir_all(&dir).and_then(|_| touch(&alive));
             beat = Instant::now();
         }
-        if let Ok(bytes) = std::fs::read(&inbox) {
-            let len = bytes.len() as u64;
-            if len < offset {
-                offset = 0;
-            }
-            let new = &bytes[offset as usize..];
-            let complete = new.iter().rposition(|b| *b == b'\n').map_or(0, |i| i + 1);
-            for l in String::from_utf8_lossy(&new[..complete]).lines() {
-                if let Ok(e) = serde_json::from_str::<Value>(l) {
-                    println!("{}", watch_line(&e));
-                }
-            }
-            offset += complete as u64;
-            let _ = std::io::stdout().flush();
+        let (events, next) = read_new(&inbox, offset);
+        offset = next;
+        for e in &events {
+            println!("{}", watch_line(e));
         }
+        let _ = std::io::stdout().flush();
         std::thread::sleep(Duration::from_millis(500));
     }
 }
@@ -460,7 +552,7 @@ fn check_messages(st: &St) -> Value {
 fn cfg(name: &str) -> AppConfig<Value> {
     AppConfig {
         id: AppID::new(APP_ID),
-        rendezvous_url: RELAY.into(),
+        rendezvous_url: std::env::var("PAIR_RELAY").map(Into::into).unwrap_or(RELAY.into()), // self-hosting, tests
         app_version: json!({"v": 1, "name": name}),
     }
 }
@@ -627,7 +719,8 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
             result_text(
                 format!(
                     "{BANNER}\nPairing code: {code}\nAsk your user to share it with their colleague, who enters it with /pair {code}. \
-                It works once and expires in 2 minutes. Trust level: {trust}. When they connect you will get a pair_request event; ask your user before calling pair_accept."
+                It works once and expires in 2 minutes. Trust level: {trust}. When they connect you will get a pair_request event; ask your user before calling pair_accept.\n{}",
+                    delivery_note()
                 ),
                 false,
             )
@@ -642,7 +735,8 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
             start(st, out, Side::Joiner(code), me(a), trust);
             result_text(
                 format!(
-                    "{BANNER}\nConnecting (trust: {trust}). You'll get a channel event when the other side approves or declines."
+                    "{BANNER}\nConnecting (trust: {trust}). You'll get an event when the other side approves or declines.\n{}",
+                    delivery_note()
                 ),
                 false,
             )
@@ -669,7 +763,7 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
                 return result_text(format!("text must be 1..={MAX_TEXT} bytes"), true);
             }
             if send(st, json!({"t": "msg", "message": a2a_text(text)})) {
-                result_text("sent", false)
+                result_text(format!("sent{}", listener_reminder()), false)
             } else {
                 result_text("not connected", true)
             }
@@ -707,7 +801,8 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
                 if ok {
                     result_text(
                         format!(
-                            "Sending \"{name}\" ({size} bytes, {n} part(s)). You'll get a file_delivered event when it arrives."
+                            "Sending \"{name}\" ({size} bytes, {n} part(s)). You'll get a file_delivered event when it arrives.{}",
+                            listener_reminder()
                         ),
                         false,
                     )
@@ -755,10 +850,24 @@ fn start(st: &St, out: &Out, side: Side, me: String, trust: &'static str) {
     });
 }
 
+/// Opt-in diagnostics to stderr (Claude Code keeps MCP stderr in its debug log). Never includes message content.
+macro_rules! debug {
+    ($($a:tt)*) => {
+        if std::env::var_os("PAIR_DEBUG").is_some() {
+            eprintln!("pair[{}] {}", std::process::id(), format!($($a)*));
+        }
+    };
+}
+
 enum Ev {
     In(Result<Vec<u8>, magic_wormhole::WormholeError>),
     Out(Result<Value, async_channel::RecvError>),
+    /// A file transfer got no chunk for FILE_STALL.
+    Stall,
 }
+
+/// A half-received file with no new chunk for this long is abandoned, and the owner told.
+const FILE_STALL: Duration = Duration::from_secs(45);
 
 async fn session(st: &St, out: &Out, side: Side, me: String, rx: async_channel::Receiver<Value>) -> String {
     let initiator = matches!(side, Side::Initiator(_));
@@ -799,18 +908,32 @@ async fn session(st: &St, out: &Out, side: Side, me: String, rx: async_channel::
             async_io::Timer::after(HEARTBEAT).await;
             Ev::Out(Ok(json!({"t": "ping"}))) // peer drops unknown types
         };
+        let stall = async {
+            if incoming.is_empty() {
+                future::pending::<()>().await;
+            }
+            async_io::Timer::after(FILE_STALL).await;
+            Ev::Stall
+        };
         let ev = future::or(
             async { Ev::In(w.receive().await) },
-            future::or(async { Ev::Out(rx.recv().await) }, heartbeat),
+            future::or(async { Ev::Out(rx.recv().await) }, future::or(heartbeat, stall)),
         )
         .await;
         match ev {
             Ev::Out(Err(_)) => return "closed".into(),
             Ev::Out(Ok(msg)) => {
                 let last = msg["t"] == "bye" || msg["t"] == "reject";
-                if let Err(e) = w.send_json(&msg).await {
+                debug!("send t={} seq={}", msg["t"], msg["seq"]);
+                let stalled = async {
+                    async_io::Timer::after(SEND_TIMEOUT).await;
+                    Err("the relay stopped responding".to_string())
+                };
+                let sent = future::or(async { w.send_json(&msg).await.map_err(|e| e.to_string()) }, stalled).await;
+                if let Err(e) = sent {
                     return format!("connection lost: {e}");
                 }
+                debug!("sent t={} seq={}", msg["t"], msg["seq"]);
                 if last {
                     let _ = w.close().await;
                     return if msg["t"] == "bye" {
@@ -820,11 +943,29 @@ async fn session(st: &St, out: &Out, side: Side, me: String, rx: async_channel::
                     };
                 }
             }
+            Ev::Stall => {
+                let peer = st.lock().unwrap().peer.clone();
+                for (_, f) in incoming.drain() {
+                    let name = safe_file_name(&f.name);
+                    push(
+                        out,
+                        json!({"kind": "file_failed", "peer": peer}),
+                        &format!(
+                            "The file \"{name}\" from {peer} stopped arriving ({} of {} bytes) and was discarded. \
+                         The relay may be stalling; ask them to send it again.",
+                            f.data.len(),
+                            f.size
+                        ),
+                    );
+                }
+            }
             Ev::In(Err(e)) => return format!("connection lost: {e}"),
             Ev::In(Ok(bytes)) => {
                 let Ok(m) = serde_json::from_slice::<Value>(&bytes) else {
+                    debug!("recv unparseable {} bytes", bytes.len());
                     continue;
                 };
+                debug!("recv t={} seq={} bytes={}", m["t"], m["seq"], bytes.len());
                 let phase = st.lock().unwrap().phase;
                 match (m["t"].as_str().unwrap_or(""), initiator, phase) {
                     ("hello", true, Phase::Waiting) => {
@@ -920,8 +1061,10 @@ async fn session(st: &St, out: &Out, side: Side, me: String, rx: async_channel::
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    if args.get(1).map(String::as_str) == Some("watch") {
-        return watch(args.get(2).cloned());
+    match (args.get(1).map(String::as_str), args.get(2)) {
+        (Some("watch"), d) => return watch(d.cloned()),
+        (Some("wait"), Some(d)) => return wait(Path::new(d)),
+        _ => {}
     }
     let dir = session_dir(None);
     if let Some(d) = &dir {

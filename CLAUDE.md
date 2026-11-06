@@ -87,6 +87,9 @@ claude plugin validate plugin --strict
 ```
 
 Try a local build in Claude Code: start it with `PAIR_BIN=<path to server/target/release/pair>`.
+`PAIR_RELAY=ws://127.0.0.1:4777/v1` points at a local mailbox server (`pip install magic-wormhole-mailbox-server`,
+then `twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1`): use it to tell relay problems from code problems.
+`PAIR_DEBUG=1` logs send/receive steps (never content) to stderr.
 
 ## Architecture
 
@@ -115,6 +118,9 @@ Try a local build in Claude Code: start it with `PAIR_BIN=<path to server/target
 
 ## Conventions
 
+- Before a release, check delivery in each host on macOS and Windows: terminal `claude` (plugin monitor),
+  Claude desktop app Code tab and VS Code (no plugin monitors: `pair wait` fallback), and `claude -p` (check_messages).
+  Plugin monitors only start in the terminal CLI; Agent SDK hosts don't run them.
 - CI minutes matter: Rust CI is Linux-only and path-filtered; macOS/Windows only via manual dispatch or releases.
 - All GitHub Actions pinned by commit SHA; Dependabot has a 7-day cooldown.
 - Track work in beads (`bd`), not markdown TODOs.

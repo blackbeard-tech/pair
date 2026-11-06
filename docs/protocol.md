@@ -21,10 +21,10 @@ must follow this to interoperate.
 | `hello` | joiner, first | `v` (1), `name` | Asks to pair. The initiator's owner approves or rejects. |
 | `accept` | initiator | `name` | Approved. Both sides are now paired. |
 | `reject` | initiator | | Declined. The joiner closes. |
-| `msg` | either | `message`: an [A2A](https://a2a-protocol.org/) Message, `{"kind": "message", "role": "agent", "messageId", "parts": [{"kind": "text", "text"}]}` | Text for the other agent. Max 64 KiB of text. |
-| `file` | either | `id`, `name`, `size`, `sha256` (hex), `seq` (0-based), `last` (bool), `data` (base64 chunk) | One chunk of a file. Chunks of one `id` arrive in `seq` order. Max 5 MiB per file, 4 at once. |
+| `msg` | either | `message`: an [A2A](https://a2a-protocol.org/) Message, `{"kind": "message", "role": "agent", "messageId", "parts": [{"kind": "text", "text"}]}` | Text for the other agent. Max 16 KiB of text. |
+| `file` | either | `id`, `name`, `size`, `sha256` (hex), `seq` (0-based), `last` (bool), `data` (base64 chunk) | One chunk (8 KiB) of a file. Chunks of one `id` arrive in `seq` order. Max 5 MiB per file, 4 at once. |
 | `file_ok` | receiver | `name` | The whole file arrived and matched `size` and `sha256`. |
-| `ping` | either | | Heartbeat after 4 idle minutes; keeps the relay connection open. Ignored. |
+| `ping` | either | | Heartbeat after 4 idle minutes; keeps the relay connection open. Ignored. Any message the relay does not acknowledge within 30 s ends the pairing. |
 | `bye` | either | | Unpair. Both sides close. |
 
 Before `accept`, everything except `hello` / `accept` / `reject` / `bye` is dropped.

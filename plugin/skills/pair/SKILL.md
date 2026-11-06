@@ -21,7 +21,10 @@ is read-only (peer requests may trigger read-only tools; everything else asks th
 
 Events (pair requests, replies, unpairs) arrive by themselves, usually as monitor events starting
 `pair <kind> from`, sometimes as `<channel source="pair">` tags. Don't poll after starting, joining or
-sending: tell the user you'll show the reply when it arrives. Call `check_messages` only when the user
+sending: tell the user you'll show the reply when it arrives. If a `pair_start` / `pair_join` / send result says
+live delivery is NOT running, tell the user and follow its instructions: run the given `pair wait` command as a
+background command, and after it finishes and you've handled its output, run it again straight away, for as long
+as you are paired. Call `check_messages` only when the user
 asks for news, or in a non-interactive session (`claude -p`), where nothing arrives by itself.
 
 To send a file the user asked for, call `send_file` with its absolute path (max 5 MB). Never send a file
