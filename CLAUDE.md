@@ -108,10 +108,11 @@ then `twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1`): use it to te
 
 1. Bump `server/Cargo.toml` version; commit.
 2. `git tag vX.Y.Z` and push the tag: `release.yml` builds macOS (both arches) and Windows and publishes.
-   Stages save their own artifacts: macos-unsigned (build) -> macos-signed (sign) -> macos-notarized (notarize), plus windows. Publishing waits only for build and
+   Stages save their own artifacts: macos-unsigned (build) -> macos-signed (sign) -> macos-notarized (saved by
+   notarization-check.yml once Apple's ticket exists), plus windows. Publishing waits only for build and
    sign, and uses signed macOS binaries, or unsigned ones (with a warning in the release notes) if signing failed,
-   e.g. an expired certificate. Notarization never changes the files. The release run waits ~50 min for Apple;
-   if still pending, `notarization-check.yml` checks hourly (Gatekeeper's public ticket lookup, no credentials)
+   e.g. an expired certificate. Notarization never changes the files. The release run submits to Apple and doesn't
+   wait (the submission ID is in the macos-notarize job log); `notarization-check.yml` checks hourly (Gatekeeper's public ticket lookup, no credentials)
    and updates the release notes when the ticket appears, giving up after 48 hours. Signing secrets exist only in the `release` environment (v* tags only). Never
    publish binaries built on a laptop. To test the pipeline, tag `vX.Y.Z-rc.N` (with that version in
    `server/Cargo.toml`, on a side commit): it publishes as a pre-release and is never pinned.

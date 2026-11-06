@@ -46,13 +46,15 @@ jobs:
             ok=yes
             for f in "$dir"/pair-*; do
               chmod +x "$f"
-              spctl -a -vvv -t open --context context:primary-signature "$f" 2>&1 | tee /dev/stderr \
-                | grep -q 'source=Notarized Developer ID' || ok=no
+              spctl -a -vvv -t open --context context:primary-signature "$f" > "$f.spctl.txt" 2>&1 || true
+              cat "$f.spctl.txt"
+              grep -q 'source=Notarized Developer ID' "$f.spctl.txt" || ok=no
             done
             published=$(gh release view "$tag" --repo "$REPO" --json publishedAt --jq .publishedAt)
             age_h=$(( ( $(date -u +%s) - $(date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$published" +%s) ) / 3600 ))
             if [ "$ok" = yes ]; then
               now="Notarization: accepted by Apple."
+              mkdir -p "$RUNNER_TEMP/notarized/$tag" && mv "$dir"/pair-* "$RUNNER_TEMP/notarized/$tag/"
             elif [ "$age_h" -ge 48 ]; then
               now="Notarization: no ticket from Apple after 48 hours. The binaries are signed but not notarized."
             else
@@ -62,3 +64,6 @@ jobs:
             gh release edit "$tag" --repo "$REPO" --notes "${body/Notarization: pending at Apple (checked hourly for up to 48 hours)./$now}"
             echo "$tag: $now"
           done
+      # Binaries + Gatekeeper's confirmation, for releases confirmed in this run.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: macos-notarized, path: "${{ runner.temp }}/notarized", if-no-files-found: ignore }
