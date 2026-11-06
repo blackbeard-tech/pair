@@ -24,7 +24,8 @@ When someone joins, Claude asks you "Pair with …?" and nothing is exchanged un
 Once paired, ask Claude to message the other agent, or to send them a file (up to 5 MB).
 Say "unpair", or close the session, to end it.
 
-Runs on macOS (Apple Silicon and Intel) and Windows (x64). Linux is not supported yet.
+Runs on macOS (Apple Silicon and Intel), Windows (x64) and Linux (x64, arm64), including Claude Code cloud sessions
+if their network allows the relay.
 
 ## How messages reach Claude
 
@@ -46,10 +47,12 @@ silently. (The desktop app's ordinary chat, outside the Code tab, can't run loca
 - **Peer messages are requests, not instructions.** You choose how much a peer's request may trigger
   without asking you: `read-only` (default: answering and reading files), `ask` (everything asks), or `normal`.
 - **Approvals stay with you.** A peer can never approve tool use in your session.
-- **Files:** every file you send needs your click in a confirmation dialog (Claude can't answer it for you),
-  and secret-looking files (`.ssh`, `.env`, keys) are refused.
+- **Files:** every file you send needs your OK in Claude Code's own permission prompt (Claude can't answer it for
+  you, and auto mode doesn't skip it), and secret-looking files (`.ssh`, `.env`, keys) are refused.
   Received files land in a quarantine folder, are checked against their hash, and are deleted after 7 days.
-- **What the relay sees:** both IP addresses, timing and message sizes, not content.
+- **What the relays see:** the public relay only sets the pairing up; messages then travel directly between the two
+  machines when possible, or through magic-wormhole's transit relay. Relays see IP addresses, timing and sizes, never
+  content. A direct connection means each side learns the other's IP address.
 
 Details and known limitations are in the [threat model](docs/threat-model.md). Report security issues
 privately as described in [SECURITY.md](SECURITY.md).
@@ -59,8 +62,8 @@ privately as described in [SECURITY.md](SECURITY.md).
 Pilot. Known limitations:
 
 - Binaries are unsigned. Each is checked against a checksum pinned in the plugin before it runs.
-- The public relay uses `ws://` on port 4000, which some corporate networks block, and it occasionally stalls;
-  when it does, the pairing ends with a clear message rather than hanging. A self-hosted relay is planned.
+- The public relay uses `ws://` on port 4000 and transit uses port 4001, which some corporate networks block.
+  If setup stalls, the pairing ends with a clear message rather than hanging.
 - Messages are limited to 16 KB and files to 5 MB.
 - Pairing lasts one session. A dropped connection means pairing again.
 - The trust level is an instruction to Claude, not yet enforced by a hook.

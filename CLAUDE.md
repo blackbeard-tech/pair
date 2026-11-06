@@ -93,8 +93,9 @@ then `twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1`): use it to te
 
 ## Architecture
 
-- `server/`: Rust MCP stdio server (`pair`), magic-wormhole 0.8.1 mailbox (SPAKE2 + E2E secretbox) on
-  `relay.magic-wormhole.io`. Hand-rolled JSON-RPC. Tools: pair_start/join/accept/reject, send_to_peer,
+- `server/`: Rust MCP stdio server (`pair`), magic-wormhole 0.8.1. The mailbox on `relay.magic-wormhole.io`
+  (SPAKE2) is used only for setup: hello/accept and transit hints, then closed, as the wormhole CLI does. Traffic
+  runs over transit (direct TCP or `transit.magic-wormhole.io:4001`) with a split reader/writer. See docs/protocol.md. Hand-rolled JSON-RPC. Tools: pair_start/join/accept/reject, send_to_peer,
   unpair, check_messages. `pair watch <data>` is the plugin monitor.
 - Delivery: events go to `<plugin data>/sessions/<CLAUDE_CODE_SESSION_ID>/inbox.jsonl`, printed live by the
   monitor; a channel notification is added only when the monitor heartbeat is stale; everything is also

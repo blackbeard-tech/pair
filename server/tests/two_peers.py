@@ -9,6 +9,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 
 BIN = sys.argv[1]
 
@@ -27,8 +28,11 @@ class Peer:
         for line in self.p.stdout:
             m = json.loads(line)
             if m.get("method") == "elicitation/create":  # play the human
+                if self.answer == "decline-slow":
+                    time.sleep(2)  # a person reading the dialog
+                action = "decline" if self.answer.startswith("decline") else self.answer
                 self.p.stdin.write(json.dumps({"jsonrpc": "2.0", "id": m["id"],
-                    "result": {"action": self.answer, "content": {"confirm": True}}}) + "\n")
+                    "result": {"action": action, "content": {}}}) + "\n")
                 self.p.stdin.flush()
                 continue
             self.q.put(m)
@@ -105,9 +109,12 @@ b.tool("send_file", path=src)  # same name again: kept, not overwritten
 path2 = a.event("file")["content"].split("Saved to ")[1].split(". It came")[0]
 assert path2 != path and os.path.exists(path), (path, path2)
 b.event("file_delivered")
-b.answer = "decline"  # the human says no: nothing is sent
+b.answer = "decline-slow"  # the human says no: nothing is sent
 text, err = b.tool("send_file", path=src)
 assert not err and "declined" in text, text
+b.answer = "decline"  # declined faster than anyone can click: the app answered, nobody was asked
+text, err = b.tool("send_file", path=src)
+assert err and "Couldn't ask" in text, text
 b.answer = "accept"
 os.makedirs(os.path.join(tmp, ".ssh"))
 open(os.path.join(tmp, ".ssh", "id_rsa"), "w").write("not a real key")

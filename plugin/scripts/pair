@@ -16,8 +16,10 @@ if [ -n "${PAIR_BIN:-}" ]; then exec "$PAIR_BIN" "$@"; fi  # dev override: a loc
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64) asset=pair-aarch64-apple-darwin ;;
   Darwin-x86_64) asset=pair-x86_64-apple-darwin ;;
+  Linux-x86_64) asset=pair-x86_64-unknown-linux-musl ;;
+  Linux-aarch64|Linux-arm64) asset=pair-aarch64-unknown-linux-musl ;;
   MINGW*|MSYS*|CYGWIN*) asset=pair-x86_64-pc-windows-gnu.exe ;;
-  *) echo "pair: $(uname -s) $(uname -m) is not supported yet (macOS and Windows only)" >&2; exit 1 ;;
+  *) echo "pair: $(uname -s) $(uname -m) is not supported yet (macOS, Windows and Linux on x86_64/arm64 only)" >&2; exit 1 ;;
 esac
 
 dir="${PAIR_DATA:-$HOME/.cache/pair}/$VERSION"

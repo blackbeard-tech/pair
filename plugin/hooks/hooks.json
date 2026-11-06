@@ -23,6 +23,17 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "mcp__plugin_pair_pair__send_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/pair\" hook confirm-send"
+          }
+        ]
+      }
     ]
   }
 }

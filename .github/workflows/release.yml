@@ -128,10 +128,35 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { name: windows, path: "pair-*", if-no-files-found: error }
 
+  # Static (musl) Linux binaries, e.g. for Claude Code cloud sessions. Pure Rust, so no C toolchain needed;
+  # each arch builds natively, no package mirror involved.
+  linux:
+    strategy:
+      matrix:
+        include:
+          - { runner: ubuntu-latest, target: x86_64-unknown-linux-musl }
+          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    permissions: { contents: read }
+    defaults:
+      run: { working-directory: server }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - env: { TARGET: "${{ matrix.target }}" }
+        run: |
+          rustup toolchain install stable --profile minimal -t "$TARGET" && rustup default stable
+          cargo build --locked --release --target "$TARGET"
+          cp "target/$TARGET/release/pair" "../pair-$TARGET"
+          file "../pair-$TARGET"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: "linux-${{ matrix.target }}", path: "pair-*", if-no-files-found: error }
+
   # Runs as soon as builds and signing are done (or signing failed): never waits for notarization.
   publish:
-    needs: [macos-build, macos-sign, windows]
-    if: ${{ !cancelled() && needs.macos-build.result == 'success' && needs.windows.result == 'success' }}
+    needs: [macos-build, macos-sign, windows, linux]
+    if: ${{ !cancelled() && needs.macos-build.result == 'success' && needs.windows.result == 'success' && needs.linux.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: { contents: write }
@@ -145,6 +170,8 @@ jobs:
           [ "v$cargo_v" = "$TAG" ] || { echo "::error::$TAG vs Cargo $cargo_v"; exit 1; }
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with: { name: windows, path: dist }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with: { pattern: "linux-*", path: dist, merge-multiple: true }
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with: { name: "${{ needs.macos-sign.result == 'success' && 'macos-signed' || 'macos-unsigned' }}", path: dist }
       - working-directory: dist
@@ -167,7 +194,7 @@ jobs:
           gh release create "$TAG" pair-* checksums.txt $pre --repo "$REPO" --title "$TAG" --notes "Binaries for the pair plugin.
 
           - $mac
-          - Windows: unsigned.
+          - Windows, Linux: unsigned.
 
           Verify against checksums.txt; the plugin pins these hashes in plugin/checksums.txt."
 
