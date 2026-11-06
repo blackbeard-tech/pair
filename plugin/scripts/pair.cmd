@@ -3,7 +3,7 @@ rem Windows launcher for the pair channel server. fetch.ps1 ensures this plugin 
 rem pair.exe is present and checksum-verified, then cmd runs it with stdio passed straight through.
 setlocal
 rem Started from PowerShell 7, we'd inherit its PSModulePath and Windows PowerShell 5.1 then can't load
-rem its own cmdlets (Get-FileHash not recognised). Empty makes 5.1 use its default. (Thanks, Rhys.)
+rem its own cmdlets (Get-FileHash not recognised). Empty makes 5.1 use its default.
 set "PSModulePath="
 rem Monitors pass the data dir as an argument: `pair watch <data>`.
 if /i "%~1"=="watch" if not "%~2"=="" set "PAIR_DATA=%~2"
