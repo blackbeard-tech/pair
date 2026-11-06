@@ -37,7 +37,10 @@ if their network allows the relay.
 | Non-interactive (`claude -p`, Agent SDK scripts) | Claude polls with the `check_messages` tool. |
 
 No flags are needed. `pair_start` and `pair_join` always say which of these is active, so a session never waits
-silently. (The desktop app's ordinary chat, outside the Code tab, can't run local plugins like this one.)
+silently.
+
+**Where it doesn't run:** chat (claude.ai, the desktop app's Chat tab, mobile) and cloud sessions. They don't start
+a plugin's local server, so the pair tools never appear; the skill says so instead of trying workarounds.
 
 ## Safety
 

@@ -11,6 +11,11 @@ pair · Brought to you by Blackbeard Technologies · https://blackbeard.tech
 
 Arguments: $ARGUMENTS
 
+If the `pair_start` / `pair_join` tools aren't available, stop there. Tell the user that pair runs only in
+Claude Code on their own computer (the terminal, the desktop app's Code tab, or an IDE extension), not in chat,
+claude.ai or cloud sessions, which don't start the plugin's local server. Don't try to run the plugin's scripts,
+download its binary, or ask for extra access as a workaround.
+
 - **No code given:** call `pair_start`. Show the user the code and tell them to send it to their colleague,
   who runs `/pair:pair <code>`. It works once and expires in 2 minutes.
 - **A code given** (number-word-word, e.g. `7-amber-falcon`): call `pair_join` with it.
