@@ -112,8 +112,10 @@ then `twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1`): use it to te
    notarization-check.yml once Apple's ticket exists), plus windows. Publishing waits only for build and
    sign, and uses signed macOS binaries, or unsigned ones (with a warning in the release notes) if signing failed,
    e.g. an expired certificate. Notarization never changes the files. The release run submits to Apple and doesn't
-   wait (the submission ID is in the macos-notarize job log); `notarization-check.yml` checks hourly (Gatekeeper's public ticket lookup, no credentials)
-   and updates the release notes when the ticket appears, giving up after 48 hours. Signing secrets exist only in the `release` environment (v* tags only). Never
+   wait; the release notes carry the submission ID. Hourly, `notarization-check.yml` (on main, no secrets) starts
+   a check on each pending release's tag; that run may use the notary key and records Apple's verdict (accepted,
+   or rejected with Apple's reason) in the notes, saving macos-notarized when accepted; gives up after 48 hours.
+   Signing secrets exist only in the `release` environment (v* tags only). Never
    publish binaries built on a laptop. To test the pipeline, tag `vX.Y.Z-rc.N` (with that version in
    `server/Cargo.toml`, on a side commit): it publishes as a pre-release and is never pinned.
 3. Copy the release `checksums.txt` into `plugin/checksums.txt` under `# release vX.Y.Z`, set

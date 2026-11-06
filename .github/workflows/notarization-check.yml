@@ -1,7 +1,9 @@
 name: notarization-check
-# Follows up releases whose macOS notarization was still pending when the release run stopped waiting.
-# Uses Gatekeeper's public ticket lookup (spctl) on the published binaries: no Apple credentials needed.
-# Gives up 48 hours after the release was published.
+# Follows up releases whose macOS notarization is pending (see release.yml), hourly for up to 48 hours.
+#
+# Scheduled runs start on main and get no secrets. The 'find' job lists pending releases and starts this
+# workflow on each release's own tag; that run may enter the 'release' environment (v* tags only), so the
+# notary key never reaches a run outside a release tag. The 'check' job asks Apple for the verdict.
 on:
   schedule: [{ cron: "23 * * * *" }]
   workflow_dispatch:
@@ -9,61 +11,70 @@ on:
 permissions: {}
 
 concurrency:
-  group: notarization-check
+  group: notarization-check-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  pending:
+  find:
+    if: github.event_name == 'schedule' || !startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions: { contents: read }
-    outputs:
-      tags: ${{ steps.find.outputs.tags }}
+    permissions: { contents: read, actions: write }
     steps:
-      - id: find
-        env: { GH_TOKEN: "${{ github.token }}", REPO: "${{ github.repository }}" }
+      - env: { GH_TOKEN: "${{ github.token }}", REPO: "${{ github.repository }}" }
         run: |
           tags=$(gh api "repos/$REPO/releases?per_page=20" \
-            --jq '[.[] | select(.body | contains("Notarization: pending at Apple")) | .tag_name] | join(" ")')
-          echo "pending: ${tags:-none}"
-          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+            --jq '.[] | select(.body | contains("Notarization: pending at Apple (submission ")) | .tag_name')
+          [ -n "$tags" ] || { echo "nothing pending"; exit 0; }
+          for tag in $tags; do
+            echo "checking $tag"
+            gh workflow run notarization-check.yml --repo "$REPO" --ref "$tag"
+          done
 
   check:
-    needs: pending
-    if: needs.pending.outputs.tags != ''
+    if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v')
     runs-on: macos-latest
     timeout-minutes: 15
     permissions: { contents: write }
+    environment: release
     steps:
-      - env:
+      - name: ask Apple
+        env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          TAGS: ${{ needs.pending.outputs.tags }}
+          TAG: ${{ github.ref_name }}
+          KEY_P8: ${{ secrets.MACOS_NOTARY_KEY_P8 }}
+          KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
         run: |
-          for tag in $TAGS; do
-            dir="$RUNNER_TEMP/$tag"; mkdir -p "$dir"
-            gh release download "$tag" --repo "$REPO" -p 'pair-*-apple-darwin' -D "$dir"
-            ok=yes
-            for f in "$dir"/pair-*; do
-              chmod +x "$f"
-              spctl -a -vvv -t open --context context:primary-signature "$f" > "$f.spctl.txt" 2>&1 || true
-              cat "$f.spctl.txt"
-              grep -q 'source=Notarized Developer ID' "$f.spctl.txt" || ok=no
-            done
-            published=$(gh release view "$tag" --repo "$REPO" --json publishedAt --jq .publishedAt)
-            age_h=$(( ( $(date -u +%s) - $(date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$published" +%s) ) / 3600 ))
-            if [ "$ok" = yes ]; then
+          body=$(gh release view "$TAG" --repo "$REPO" --json body --jq .body)
+          old=$(grep -o 'Notarization: pending at Apple (submission [^)]*)\.' <<<"$body") || { echo "$TAG: not pending"; exit 0; }
+          id=$(sed -E 's/.*submission ([0-9a-f-]+);.*/\1/' <<<"$old")
+          key="$RUNNER_TEMP/notary.p8"
+          printf '%s\n' "$KEY_P8" > "$key"
+          trap 'rm -f "$key"' EXIT
+          info=$(xcrun notarytool info "$id" --key "$key" --key-id "$KEY_ID" --issuer "$ISSUER_ID" --output-format json)
+          echo "$info"
+          published=$(gh release view "$TAG" --repo "$REPO" --json publishedAt --jq .publishedAt)
+          age_h=$(( ( $(date -u +%s) - $(date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$published" +%s) ) / 3600 ))
+          case "$(jq -r .status <<<"$info")" in
+            Accepted)
               now="Notarization: accepted by Apple."
-              mkdir -p "$RUNNER_TEMP/notarized/$tag" && mv "$dir"/pair-* "$RUNNER_TEMP/notarized/$tag/"
-            elif [ "$age_h" -ge 48 ]; then
-              now="Notarization: no ticket from Apple after 48 hours. The binaries are signed but not notarized."
-            else
-              echo "$tag: still pending (${age_h}h)"; continue
-            fi
-            body=$(gh release view "$tag" --repo "$REPO" --json body --jq .body)
-            gh release edit "$tag" --repo "$REPO" --notes "${body/Notarization: pending at Apple (checked hourly for up to 48 hours)./$now}"
-            echo "$tag: $now"
-          done
-      # Binaries + Gatekeeper's confirmation, for releases confirmed in this run.
+              mkdir -p notarized && echo "$info" > notarized/notarization.json
+              gh release download "$TAG" --repo "$REPO" -p 'pair-*-apple-darwin' -D notarized ;;
+            Invalid|Rejected)
+              reason=$(xcrun notarytool log "$id" --key "$key" --key-id "$KEY_ID" --issuer "$ISSUER_ID" \
+                | jq -r '[.statusSummary, (.issues // [] | .[] | "\(.path): \(.message)")] | map(select(. != null)) | join("; ")')
+              now="Notarization: rejected by Apple (submission $id): $reason The binaries are signed but not notarized." ;;
+            *)
+              if [ "$age_h" -ge 48 ]; then
+                now="Notarization: no verdict from Apple after 48 hours (submission $id). The binaries are signed."
+              else
+                echo "$TAG: still in progress after ${age_h}h"; exit 0
+              fi ;;
+          esac
+          gh release edit "$TAG" --repo "$REPO" --notes "${body/"$old"/$now}"
+          echo "$TAG: $now"
+      # Binaries + Apple's verdict, saved when accepted.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with: { name: macos-notarized, path: "${{ runner.temp }}/notarized", if-no-files-found: ignore }
+        with: { name: macos-notarized, path: notarized, if-no-files-found: ignore }
