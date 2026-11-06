@@ -9,6 +9,8 @@ VERSION=$(sed -n 's/^# release v\([0-9][0-9.]*\).*/\1/p' "$root/checksums.txt") 
 
 # Monitors don't get CLAUDE_PLUGIN_DATA in their env, so `pair watch <data>` passes it as an argument.
 if [ "${1:-}" = watch ] && [ -n "${2:-}" ]; then PAIR_DATA=$2; export PAIR_DATA; fi
+# Hooks get the plugin data dir in their environment.
+if [ -z "${PAIR_DATA:-}" ] && [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then PAIR_DATA=$CLAUDE_PLUGIN_DATA; export PAIR_DATA; fi
 if [ -n "${PAIR_BIN:-}" ]; then exec "$PAIR_BIN" "$@"; fi  # dev override: a local build
 
 case "$(uname -s)-$(uname -m)" in

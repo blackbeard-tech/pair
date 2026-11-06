@@ -179,7 +179,7 @@ import re, shlex
 kenv = dict(os.environ, PAIR_DATA=tempfile.mkdtemp(), CLAUDE_CODE_SESSION_ID="test-session-k")
 k, l = Peer("K", env=kenv), Peer("L")
 text = k.tool("pair_start", name="Kim")[0]
-assert "Live delivery: NOT running" in text, text
+assert "Live delivery: NOT set up" in text, text
 cmd = shlex.split(re.search(r'(".+?" wait ".+?")', text).group(1))
 def wait_once(timeout=30):
     out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout).stdout.strip().splitlines()
@@ -202,5 +202,52 @@ assert not err and "Nothing is listening" in text, text
 assert l.event("message")["content"] == "hi"
 k.tool("unpair")
 l.event("unpaired")
+
+# Plugin hooks (desktop app / IDEs): emulate Claude Code. SessionStart names the inbox to watch; on each
+# change, FileChanged runs `pair hook inbox`, and exit code 2 wakes Claude with its stderr.
+hdata, hsid = tempfile.mkdtemp(), "test-session-hooks"
+out = subprocess.run([BIN, "hook", "session-start", hdata], input=json.dumps({"session_id": hsid}),
+                     capture_output=True, text=True, timeout=10)
+watched = json.loads(out.stdout)["hookSpecificOutput"]["watchPaths"][0]
+assert watched.endswith(os.path.join("sessions", hsid, "inbox.jsonl")), watched
+wakes = queue.Queue()
+def fire(path):
+    r = subprocess.run([BIN, "hook", "inbox", hdata], capture_output=True, text=True, timeout=30,
+                       input=json.dumps({"session_id": hsid, "file_path": path, "event": "change"}))
+    return r.returncode, r.stderr.strip().splitlines()
+def file_watcher():
+    size = 0
+    while True:
+        n = os.path.getsize(watched) if os.path.exists(watched) else 0
+        if n != size:
+            size = n
+            rc, lines = fire(watched)
+            if rc == 2:
+                wakes.put(lines)
+        time.sleep(0.1)
+threading.Thread(target=file_watcher, daemon=True).start()
+henv = dict(os.environ, PAIR_DATA=hdata, CLAUDE_CODE_SESSION_ID=hsid)
+m, n = Peer("M", env=henv), Peer("N")
+text = m.tool("pair_start", name="Mia")[0]
+assert "Live delivery: active (plugin hooks" in text, text
+n.tool("pair_join", code=code_of(text), name="Ned")
+w = wakes.get(timeout=30)
+print("  hook wake ->", [x[:60] for x in w])
+assert w[0].startswith('pair pair_request from "Ned"'), w
+assert not m.tool("pair_accept")[1]
+n.event("paired")
+n.tool("send_to_peer", text="one")
+assert wakes.get(timeout=30) == ['pair message from "Ned" (trust: read-only): "one"']
+sdir = os.path.dirname(watched)
+open(os.path.join(sdir, "watch.alive"), "w").close()  # a terminal monitor is delivering
+n.tool("send_to_peer", text="two")
+time.sleep(3)
+assert wakes.empty(), "hook must stay silent while the monitor delivers"
+os.remove(os.path.join(sdir, "watch.alive"))
+n.tool("send_to_peer", text="three")
+assert wakes.get(timeout=30) == ['pair message from "Ned" (trust: read-only): "three"'], "no re-delivery of two"
+assert fire(os.path.join(tempfile.mkdtemp(), "inbox.jsonl"))[0] == 0  # a project-folder inbox.jsonl is ignored
+m.tool("unpair")
+n.event("unpaired")
 
 print("PASS")

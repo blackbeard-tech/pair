@@ -125,8 +125,10 @@ then `twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1`): use it to te
 ## Conventions
 
 - Before a release, check delivery in each host on macOS and Windows: terminal `claude` (plugin monitor),
-  Claude desktop app Code tab and VS Code (no plugin monitors: `pair wait` fallback), and `claude -p` (check_messages).
-  Plugin monitors only start in the terminal CLI; Agent SDK hosts don't run them.
+  Claude desktop app Code tab and VS Code (plugin hooks: SessionStart watchPaths + FileChanged asyncRewake),
+  a session where the plugin was installed mid-session (`pair wait` fallback), and `claude -p` (check_messages).
+  Plugin monitors only start in the terminal CLI. Hook commands must be shell form: on Windows, exec form can't
+  start our `.cmd` launcher (hooks then need Git Bash; without it the self-test reports "NOT set up").
 - CI minutes matter: Rust CI is Linux-only and path-filtered; macOS/Windows only via manual dispatch or releases.
 - All GitHub Actions pinned by commit SHA; Dependabot has a 7-day cooldown.
 - Track work in beads (`bd`), not markdown TODOs.

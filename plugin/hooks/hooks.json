@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/pair\" hook session-start"
+          }
+        ]
+      }
+    ],
+    "FileChanged": [
+      {
+        "matcher": "inbox.jsonl",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/pair\" hook inbox",
+            "async": true,
+            "asyncRewake": true,
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

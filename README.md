@@ -30,12 +30,13 @@ Runs on macOS (Apple Silicon and Intel) and Windows (x64). Linux is not supporte
 
 | Where you run Claude Code | Delivery |
 |---|---|
-| Terminal (`claude`) | Live, through the plugin's monitor. No flags needed. |
-| Claude desktop app (Code tab), VS Code and other IDE extensions | These don't start plugin monitors. When you pair, Claude is told so and starts a background listener (`pair wait`); it wakes Claude on every event and restarts after each one. Live while the session is open. |
-| Terminal with `--dangerously-load-development-channels plugin:pair@bbtech` | Live, as a channel. Optional. |
+| Terminal (`claude`) | Live, through the plugin's monitor. |
+| Claude desktop app (Code tab), VS Code and other IDE extensions | Live, through the plugin's hooks: Claude Code watches the session's inbox and wakes Claude when something arrives. On Windows this needs Git for Windows (Git Bash). |
+| Plugin installed after the session started | Restart Claude Code. Until then Claude runs a background listener (`pair wait`) instead. |
 | Non-interactive (`claude -p`, Agent SDK scripts) | Claude polls with the `check_messages` tool. |
 
-`pair_start` and `pair_join` always say which of these is active, so a session never waits silently.
+No flags are needed. `pair_start` and `pair_join` always say which of these is active, so a session never waits
+silently. (The desktop app's ordinary chat, outside the Code tab, can't run local plugins like this one.)
 
 ## Safety
 
