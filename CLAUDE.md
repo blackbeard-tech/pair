@@ -108,7 +108,7 @@ then `twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1`): use it to te
 
 1. Bump `server/Cargo.toml` version; commit.
 2. `git tag vX.Y.Z` and push the tag: `release.yml` builds macOS (both arches) and Windows and publishes.
-   Stages save their own artifacts: build (unsigned) -> sign -> notarize. Publishing waits only for build and
+   Stages save their own artifacts: macos-unsigned (build) -> macos-signed (sign) -> macos-notarized (notarize), plus windows. Publishing waits only for build and
    sign, and uses signed macOS binaries, or unsigned ones (with a warning in the release notes) if signing failed,
    e.g. an expired certificate. Notarization never changes the files; when it finishes, the `notes` job records
    the outcome on the release. Signing secrets exist only in the `release` environment (v* tags only). Never

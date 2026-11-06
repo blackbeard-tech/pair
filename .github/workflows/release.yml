@@ -4,7 +4,7 @@ name: release
 # Stages, each saving its own artifact so a later failure never loses earlier work:
 #   macos-build  -> artifact macos-unsigned
 #   macos-sign   -> artifact macos-signed      (needs the release environment's certificate)
-#   macos-notarize                              (Apple; can take minutes or hours)
+#   macos-notarize -> artifact macos-notarized   (same bytes + Apple's verdict; can take minutes or hours)
 #   windows      -> artifact windows
 #   publish      -> GitHub release, with the best macOS stage available: signed, else unsigned.
 #   notes        -> records the notarization outcome on the release.
@@ -101,15 +101,19 @@ jobs:
             --wait --timeout 230m --output-format json)
           echo "$out" | tee notarization.json
           if [ "$(jq -r .status <<<"$out")" != Accepted ]; then
-            xcrun notarytool log "$(jq -r .id <<<"$out")" --key "$key" --key-id "$KEY_ID" --issuer "$ISSUER_ID" | tee notarization-log.json || true
+            xcrun notarytool log "$(jq -r .id <<<"$out")" --key "$key" --key-id "$KEY_ID" --issuer "$ISSUER_ID" || true
             exit 1
           fi
       - name: remove signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/notary.p8"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with: { name: macos-notarization, path: "notarization*.json", if-no-files-found: ignore }
+        with:
+          name: macos-notarized
+          if-no-files-found: error
+          path: |
+            pair-*
+            notarization.json
 
   windows:
     runs-on: ubuntu-latest
@@ -187,7 +191,7 @@ jobs:
         run: |
           case "$RESULT" in
             success) now="Notarization: accepted by Apple." ;;
-            *) now="Notarization: $RESULT (binaries remain signed; see the run's macos-notarization artifact)." ;;
+            *) now="Notarization: $RESULT (binaries remain signed; Apple's reason is in the macos-notarize job log)." ;;
           esac
           body=$(gh release view "$TAG" --repo "$REPO" --json body --jq .body)
           gh release edit "$TAG" --repo "$REPO" --notes "${body/Notarization: in progress./$now}"
