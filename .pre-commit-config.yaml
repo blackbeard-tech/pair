@@ -28,7 +28,7 @@ repos:
     hooks:
       - id: cargo-fmt
         name: cargo fmt
-        entry: cargo fmt --manifest-path server/Cargo.toml --check
+        entry: sh -c 'command -v cargo >/dev/null || { echo "cargo not on PATH, skipped (CI checks fmt)"; exit 0; }; cargo fmt --manifest-path server/Cargo.toml --check'
         language: system
         files: ^server/.*\.rs$
         pass_filenames: false

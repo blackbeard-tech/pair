@@ -1,5 +1,9 @@
 # Agent Instructions
 
+**This repo is public.** Read the "READ FIRST" section of [CLAUDE.md](CLAUDE.md) before doing anything:
+no push, tag, release or repo change without the owner's explicit go in the current conversation,
+never force-push or move release tags, keep `references/` and the private beads remote private.
+
 This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
 
 > **Architecture in one line:** Issues live in a local Dolt database

@@ -64,6 +64,11 @@ case "$2" in
     if [ -n "$(git for-each-ref refs/dolt)" ]; then
       echo >&2 "pair: local refs/dolt/* exist; refusing to push to public $2. Delete them: git for-each-ref --format='delete %(refname)' refs/dolt | git update-ref --stdin"
       exit 1
+    fi
+    # Speed bump for every tool (Claude Code also has ask rules in .claude/settings.json).
+    if [ "${PAIR_PUSH_OK:-}" != 1 ]; then
+      echo >&2 "pair: $2 is PUBLIC. Push only with the owner's go, then: PAIR_PUSH_OK=1 git push ..."
+      exit 1
     fi ;;
 esac
 if command -v prek >/dev/null 2>&1; then prek run --all-files || exit 1; fi

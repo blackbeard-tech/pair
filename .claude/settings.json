@@ -11,5 +11,46 @@
         "matcher": ""
       }
     ]
+  },
+  "permissions": {
+    "ask": [
+      "Bash(git push *)",
+      "Bash(git * push *)",
+      "Bash(gh release create *)",
+      "Bash(gh release delete *)",
+      "Bash(gh release edit *)",
+      "Bash(gh release upload *)",
+      "Bash(gh repo create *)",
+      "Bash(gh repo edit *)",
+      "Bash(gh repo delete *)",
+      "Bash(gh repo archive *)",
+      "Bash(gh repo unarchive *)",
+      "Bash(gh repo rename *)",
+      "Bash(gh api *-X*)",
+      "Bash(gh api *--method*)",
+      "Bash(gh api *-f *)",
+      "Bash(gh api *-F *)",
+      "Bash(gh api *--field*)",
+      "Bash(gh api *--raw-field*)",
+      "Bash(gh api *--input*)",
+      "Bash(gh secret *)",
+      "Bash(gh variable *)",
+      "Bash(gh workflow run *)",
+      "Bash(gh run rerun *)",
+      "Bash(gh pr merge *)",
+      "Bash(bd dolt push *)",
+      "Bash(bd sync *)"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git push --mirror *)",
+      "Bash(git push * --force *)",
+      "Bash(git push * -f *)",
+      "Bash(git add -f references*)",
+      "Bash(git add --force references*)",
+      "Bash(git remote add * pair-beads*)",
+      "Bash(gh repo edit d0d55/pair-beads *)"
+    ]
   }
 }
