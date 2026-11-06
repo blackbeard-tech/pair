@@ -1,0 +1,64 @@
+name: notarization-check
+# Follows up releases whose macOS notarization was still pending when the release run stopped waiting.
+# Uses Gatekeeper's public ticket lookup (spctl) on the published binaries: no Apple credentials needed.
+# Gives up 48 hours after the release was published.
+on:
+  schedule: [{ cron: "23 * * * *" }]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: notarization-check
+  cancel-in-progress: false
+
+jobs:
+  pending:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: { contents: read }
+    outputs:
+      tags: ${{ steps.find.outputs.tags }}
+    steps:
+      - id: find
+        env: { GH_TOKEN: "${{ github.token }}", REPO: "${{ github.repository }}" }
+        run: |
+          tags=$(gh api "repos/$REPO/releases?per_page=20" \
+            --jq '[.[] | select(.body | contains("Notarization: pending at Apple")) | .tag_name] | join(" ")')
+          echo "pending: ${tags:-none}"
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+
+  check:
+    needs: pending
+    if: needs.pending.outputs.tags != ''
+    runs-on: macos-latest
+    timeout-minutes: 15
+    permissions: { contents: write }
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAGS: ${{ needs.pending.outputs.tags }}
+        run: |
+          for tag in $TAGS; do
+            dir="$RUNNER_TEMP/$tag"; mkdir -p "$dir"
+            gh release download "$tag" --repo "$REPO" -p 'pair-*-apple-darwin' -D "$dir"
+            ok=yes
+            for f in "$dir"/pair-*; do
+              chmod +x "$f"
+              spctl -a -vvv -t open --context context:primary-signature "$f" 2>&1 | tee /dev/stderr \
+                | grep -q 'source=Notarized Developer ID' || ok=no
+            done
+            published=$(gh release view "$tag" --repo "$REPO" --json publishedAt --jq .publishedAt)
+            age_h=$(( ( $(date -u +%s) - $(date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$published" +%s) ) / 3600 ))
+            if [ "$ok" = yes ]; then
+              now="Notarization: accepted by Apple."
+            elif [ "$age_h" -ge 48 ]; then
+              now="Notarization: no ticket from Apple after 48 hours. The binaries are signed but not notarized."
+            else
+              echo "$tag: still pending (${age_h}h)"; continue
+            fi
+            body=$(gh release view "$tag" --repo "$REPO" --json body --jq .body)
+            gh release edit "$tag" --repo "$REPO" --notes "${body/Notarization: pending at Apple (checked hourly for up to 48 hours)./$now}"
+            echo "$tag: $now"
+          done
