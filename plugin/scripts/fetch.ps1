@@ -18,7 +18,11 @@ try {
     $tmp = "$bin.$PID.part"  # per process: the monitor and the MCP server can both be downloading
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/blackbeard-tech/pair/releases/download/v$version/$asset" -OutFile $tmp
-    if ((Get-FileHash -Algorithm SHA256 $tmp).Hash.ToLower() -ne $want) { Remove-Item $tmp; throw "checksum mismatch for $asset; refusing to run" }
+    # .NET hashing: no dependence on cmdlet/module loading.
+    $sha = [Security.Cryptography.SHA256]::Create()
+    $fs = [IO.File]::OpenRead($tmp)
+    try { $got = -join ($sha.ComputeHash($fs) | ForEach-Object { $_.ToString('x2') }) } finally { $fs.Dispose() }
+    if ($got -ne $want) { Remove-Item $tmp; throw "checksum mismatch for $asset; refusing to run" }
     # If the other launcher got there first (Windows locks the running exe), use its verified copy.
     try { Move-Item -Force $tmp $bin } catch { Remove-Item $tmp -ErrorAction SilentlyContinue; if (-not (Test-Path $bin)) { throw } }
   }
