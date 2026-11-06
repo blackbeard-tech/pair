@@ -191,7 +191,7 @@ jobs:
         run: |
           case "$RESULT" in
             success) now="Notarization: accepted by Apple." ;;
-            *) now="Notarization: $RESULT (binaries remain signed; Apple's reason is in the macos-notarize job log)." ;;
+            *) now="Notarization: not confirmed (rejected, or still pending at Apple when the job stopped; see the macos-notarize job log). The binaries are signed either way." ;;
           esac
           body=$(gh release view "$TAG" --repo "$REPO" --json body --jq .body)
           gh release edit "$TAG" --repo "$REPO" --notes "${body/Notarization: in progress./$now}"
