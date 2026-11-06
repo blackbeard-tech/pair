@@ -47,6 +47,12 @@ jobs:
       - uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
         with: { advanced-security: false }
 
+      - name: plugin version == pinned binary release
+        run: |
+          plugin_v=$(jq -r .version plugin/.claude-plugin/plugin.json)
+          pinned_v=$(sed -n 's/^# release v\([0-9][0-9.]*\).*/\1/p' plugin/checksums.txt)
+          [ "$plugin_v" = "$pinned_v" ] || { echo "::error::plugin.json is $plugin_v but checksums.txt pins v$pinned_v"; exit 1; }
+
       - name: claude plugin validate
         run: npx --yes @anthropic-ai/claude-code@2.1.309 plugin validate plugin --strict
 

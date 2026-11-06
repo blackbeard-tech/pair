@@ -2,7 +2,7 @@ name: release
 # Tag-triggered only (git tag vX.Y.Z && git push origin vX.Y.Z).
 # Cost: one macOS job (bills 10x) builds both Mac targets; Windows is cross-built on Linux (1x).
 # After it runs: copy the release's checksums.txt into plugin/checksums.txt under a '# release vX.Y.Z' header,
-# bump plugin.json version, and commit. Plugin and binary versions are independent.
+# set plugin.json version to the same X.Y.Z, and commit. CI fails if the two ever differ.
 on:
   push: { tags: ["v*"] }
 

@@ -107,8 +107,9 @@ Try a local build in Claude Code: start it with `PAIR_BIN=<path to server/target
 2. `git tag vX.Y.Z` and push the tag: `release.yml` builds macOS (both arches) and Windows and publishes.
    GitHub macOS runners are sometimes unavailable; the fallback is building both Mac targets locally from
    the tag and attaching them with the CI Windows artifact.
-3. Copy the release `checksums.txt` into `plugin/checksums.txt` under `# release vX.Y.Z`, bump
-   `plugin/.claude-plugin/plugin.json` version, commit, push. Plugin and binary versions are independent.
+3. Copy the release `checksums.txt` into `plugin/checksums.txt` under `# release vX.Y.Z`, set
+   `plugin/.claude-plugin/plugin.json` version to the **same** X.Y.Z, commit, push. One version for plugin and
+   binary: CI fails if `plugin.json` and the pinned release differ. Even a launcher-only fix gets a new release.
 
 ## Conventions
 
