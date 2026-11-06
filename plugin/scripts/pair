@@ -24,15 +24,17 @@ if [ ! -x "$bin" ]; then
   want=$(awk -v a="$asset" '$2 == a { print $1 }' "$root/checksums.txt")
   [ -n "$want" ] || { echo "pair: no pinned checksum for $asset v$VERSION; update the plugin" >&2; exit 1; }
   mkdir -p "$dir"
-  tmp="$bin.part"
-  # gh first: works for private repos with your gh login; plain HTTPS once public.
-  if ! { command -v gh >/dev/null && gh release download "v$VERSION" -R "$REPO" -p "$asset" -O "$tmp" --clobber >&2 2>&1; }; then
+  tmp="$bin.$$.part"  # per process: the monitor and the MCP server can both be downloading
+  # gh first (host pinned: a gh logged in only to GitHub Enterprise would look there), then plain HTTPS.
+  if ! { command -v gh >/dev/null && gh release download "v$VERSION" -R "github.com/$REPO" -p "$asset" -O "$tmp" --clobber >&2 2>&1; }; then
     curl -fsSL "https://github.com/$REPO/releases/download/v$VERSION/$asset" -o "$tmp" \
-      || { echo "pair: could not download $asset v$VERSION" >&2; exit 1; }
+      || { rm -f "$tmp"; echo "pair: could not download $asset v$VERSION" >&2; exit 1; }
   fi
   got=$( (sha256sum "$tmp" 2>/dev/null || shasum -a 256 "$tmp") | cut -d' ' -f1)
   if [ "$got" != "$want" ]; then rm -f "$tmp"; echo "pair: checksum mismatch for $asset; refusing to run" >&2; exit 1; fi
   chmod +x "$tmp"
-  mv "$tmp" "$bin"
+  # Atomic; if the other launcher got there first (and Windows locks the running exe), use its verified copy.
+  mv -f "$tmp" "$bin" 2>/dev/null || rm -f "$tmp"
+  [ -x "$bin" ] || { echo "pair: could not install $asset" >&2; exit 1; }
 fi
 exec "$bin" "$@"

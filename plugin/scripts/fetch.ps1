@@ -15,11 +15,12 @@ try {
     if (-not $line) { throw "no pinned checksum for $asset v$version; update the plugin" }
     $want = ($line -split '\s+')[0]
     New-Item -ItemType Directory -Force (Split-Path $bin) | Out-Null
-    $tmp = "$bin.part"
+    $tmp = "$bin.$PID.part"  # per process: the monitor and the MCP server can both be downloading
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/blackbeard-tech/pair/releases/download/v$version/$asset" -OutFile $tmp
     if ((Get-FileHash -Algorithm SHA256 $tmp).Hash.ToLower() -ne $want) { Remove-Item $tmp; throw "checksum mismatch for $asset; refusing to run" }
-    Move-Item -Force $tmp $bin
+    # If the other launcher got there first (Windows locks the running exe), use its verified copy.
+    try { Move-Item -Force $tmp $bin } catch { Remove-Item $tmp -ErrorAction SilentlyContinue; if (-not (Test-Path $bin)) { throw } }
   }
   $bin
 } catch { [Console]::Error.WriteLine("pair: $_"); exit 1 }
