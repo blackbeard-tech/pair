@@ -108,9 +108,11 @@ then `twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1`): use it to te
 
 1. Bump `server/Cargo.toml` version; commit.
 2. `git tag vX.Y.Z` and push the tag: `release.yml` builds macOS (both arches) and Windows and publishes.
-   The macOS job signs (Developer ID, hardened runtime) and notarizes, using secrets that exist only in the
-   `release` environment (v* tags only). A failed signature or notarization stops the release: never fall back
-   to unsigned local builds for a public release. To test the pipeline, tag `vX.Y.Z-rc.N` (with that version in
+   Stages save their own artifacts: build (unsigned) -> sign -> notarize. Publishing waits only for build and
+   sign, and uses signed macOS binaries, or unsigned ones (with a warning in the release notes) if signing failed,
+   e.g. an expired certificate. Notarization never changes the files; when it finishes, the `notes` job records
+   the outcome on the release. Signing secrets exist only in the `release` environment (v* tags only). Never
+   publish binaries built on a laptop. To test the pipeline, tag `vX.Y.Z-rc.N` (with that version in
    `server/Cargo.toml`, on a side commit): it publishes as a pre-release and is never pinned.
 3. Copy the release `checksums.txt` into `plugin/checksums.txt` under `# release vX.Y.Z`, set
    `plugin/.claude-plugin/plugin.json` version to the **same** X.Y.Z, commit, push. One version for plugin and
