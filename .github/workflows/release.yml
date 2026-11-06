@@ -69,7 +69,7 @@ jobs:
             codesign --force --options runtime --timestamp --identifier tech.blackbeard.pair --sign "$identity" "$f"
             codesign --verify --strict --verbose=2 "$f"
           done
-          codesign -dv pair-aarch64-apple-darwin 2>&1 | grep -E '^(Authority|TeamIdentifier|Timestamp)='
+          codesign -dvv pair-aarch64-apple-darwin 2>&1 | grep -E '^(Authority|TeamIdentifier|Timestamp)='
       - name: remove signing material
         if: always()
         run: |
