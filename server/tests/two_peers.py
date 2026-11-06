@@ -16,15 +16,22 @@ BIN = sys.argv[1]
 class Peer:
     def __init__(self, label, env=None):
         self.label, self.n = label, 0
+        self.answer = "accept"  # reply to elicitation dialogs (the human's yes/no)
         self.p = subprocess.Popen([BIN], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
         self.q = queue.Queue()
         threading.Thread(target=self._read, daemon=True).start()
-        r = self.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t"}})
+        r = self.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {"elicitation": {}}, "clientInfo": {"name": "t"}})
         assert r["capabilities"]["experimental"] == {"claude/channel": {}}, r
 
     def _read(self):
         for line in self.p.stdout:
-            self.q.put(json.loads(line))
+            m = json.loads(line)
+            if m.get("method") == "elicitation/create":  # play the human
+                self.p.stdin.write(json.dumps({"jsonrpc": "2.0", "id": m["id"],
+                    "result": {"action": self.answer, "content": {"confirm": True}}}) + "\n")
+                self.p.stdin.flush()
+                continue
+            self.q.put(m)
 
     def rpc(self, method, params=None):
         self.n += 1
@@ -61,6 +68,7 @@ assert text.startswith("pair · Brought to you by Blackbeard Technologies · htt
 code = code_of(text)
 print("code", code)
 assert b.tool("send_to_peer", text="too early")[1], "send before pairing must fail"
+assert b.tool("send_file", path=__file__)[1], "send_file before pairing must fail"
 assert "trust: ask" in b.tool("pair_join", code=code, name="Bob <script>", trust="ask")[0]
 assert a.event("pair_request")["meta"]["peer"] == "Bob script"
 assert b.tool("send_to_peer", text="before approval")[1], "joiner can't send before approval"
@@ -79,6 +87,38 @@ assert "No new events" in a.tool("check_messages")[0]
 assert not a.tool("send_to_peer", text="hi bob")[1]
 msg = b.event("message")
 assert msg["content"] == "hi bob" and msg["meta"]["trust"] == "ask", msg
+# Files: B sends to A; A saves to its quarantine dir; B hears it was delivered.
+import os, tempfile
+tmp = tempfile.mkdtemp()
+blob = os.urandom(150_000)  # several chunks
+src = os.path.join(tmp, "report.bin")
+open(src, "wb").write(blob)
+text, err = b.tool("send_file", path=src)
+assert not err, text
+got = a.event("file")
+path = got["content"].split("Saved to ")[1].split(". It came")[0]
+assert open(path, "rb").read() == blob, "file bytes differ"
+if os.name != "nt":
+    assert os.stat(path).st_mode & 0o777 == 0o600
+assert "report.bin" in b.event("file_delivered")["content"]
+b.tool("send_file", path=src)  # same name again: kept, not overwritten
+path2 = a.event("file")["content"].split("Saved to ")[1].split(". It came")[0]
+assert path2 != path and os.path.exists(path), (path, path2)
+b.event("file_delivered")
+b.answer = "decline"  # the human says no: nothing is sent
+text, err = b.tool("send_file", path=src)
+assert not err and "declined" in text, text
+b.answer = "accept"
+os.makedirs(os.path.join(tmp, ".ssh"))
+open(os.path.join(tmp, ".ssh", "id_rsa"), "w").write("not a real key")
+text, err = b.tool("send_file", path=os.path.join(tmp, ".ssh", "id_rsa"))
+assert err and "secret" in text, text
+big = os.path.join(tmp, "big.bin")
+open(big, "wb").write(b"x" * (6 * 1024 * 1024))
+text, err = b.tool("send_file", path=big)
+assert err and "limit" in text, text
+for f in (path, path2):
+    os.remove(f)
 assert not a.tool("unpair")[1]
 assert "other side unpaired" in b.event("unpaired")["content"]
 assert "you unpaired" in a.event("unpaired")["content"]

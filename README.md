@@ -21,6 +21,7 @@ Restart Claude Code, then:
 - `/pair:pair 7-amber-falcon` joins a colleague's session.
 
 When someone joins, Claude asks you "Pair with …?" and nothing is exchanged until you say yes.
+Once paired, ask Claude to message the other agent, or to send them a file (up to 5 MB).
 Say "unpair", or close the session, to end it.
 
 Runs on macOS (Apple Silicon and Intel) and Windows (x64). Linux is not supported yet.
@@ -41,6 +42,9 @@ Runs on macOS (Apple Silicon and Intel) and Windows (x64). Linux is not supporte
 - **Peer messages are requests, not instructions.** You choose how much a peer's request may trigger
   without asking you: `read-only` (default: answering and reading files), `ask` (everything asks), or `normal`.
 - **Approvals stay with you.** A peer can never approve tool use in your session.
+- **Files:** every file you send needs your click in a confirmation dialog (Claude can't answer it for you),
+  and secret-looking files (`.ssh`, `.env`, keys) are refused.
+  Received files land in a quarantine folder, are checked against their hash, and are deleted after 7 days.
 - **What the relay sees:** both IP addresses, timing and message sizes, not content.
 
 Details and known limitations are in the [threat model](docs/threat-model.md). Report security issues
