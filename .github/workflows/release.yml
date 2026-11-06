@@ -11,8 +11,10 @@ permissions: {}
 jobs:
   macos:
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 45 # notarization usually takes a few minutes, occasionally much longer
     permissions: { contents: read }
+    # Signing secrets live only in this environment, which only v* tag runs can enter.
+    environment: release
     defaults:
       run: { working-directory: server }
     steps:
@@ -24,6 +26,57 @@ jobs:
             cargo build --locked --release --target "$t"
             cp "target/$t/release/pair" "../pair-$t"
           done
+
+      # Secrets go only to Apple's own tools, never to third-party actions, and are never printed.
+      - name: sign (Developer ID, hardened runtime)
+        working-directory: .
+        env:
+          CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          kc="$RUNNER_TEMP/sign.keychain-db"
+          kcpw=$(openssl rand -hex 24)
+          security create-keychain -p "$kcpw" "$kc"
+          security set-keychain-settings -lut 1800 "$kc"
+          security unlock-keychain -p "$kcpw" "$kc"
+          printf '%s' "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$kc" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$kcpw" "$kc" >/dev/null
+          security list-keychains -d user -s "$kc"
+          identity=$(security find-identity -v -p codesigning "$kc" | awk '/Developer ID Application/ { print $2; exit }')
+          [ -n "$identity" ] || { echo "::error::no Developer ID Application identity in MACOS_CERT_P12"; exit 1; }
+          for f in pair-*; do
+            codesign --force --options runtime --timestamp --identifier tech.blackbeard.pair --sign "$identity" "$f"
+            codesign --verify --strict --verbose=2 "$f"
+          done
+          codesign -dv pair-aarch64-apple-darwin 2>&1 | grep -E '^(Authority|TeamIdentifier|Timestamp)='
+
+      - name: notarize
+        working-directory: .
+        env:
+          KEY_P8: ${{ secrets.MACOS_NOTARY_KEY_P8 }}
+          KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+        run: |
+          key="$RUNNER_TEMP/notary.p8"
+          printf '%s\n' "$KEY_P8" > "$key"
+          mkdir -p "$RUNNER_TEMP/notarize" && cp pair-* "$RUNNER_TEMP/notarize/"
+          ditto -c -k "$RUNNER_TEMP/notarize" "$RUNNER_TEMP/notarize.zip"
+          out=$(xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" --key "$key" --key-id "$KEY_ID" --issuer "$ISSUER_ID" \
+            --wait --timeout 40m --output-format json)
+          echo "$out"
+          if [ "$(jq -r .status <<<"$out")" != Accepted ]; then
+            xcrun notarytool log "$(jq -r .id <<<"$out")" --key "$key" --key-id "$KEY_ID" --issuer "$ISSUER_ID" || true
+            exit 1
+          fi
+
+      - name: remove signing material
+        if: always()
+        working-directory: .
+        run: |
+          security delete-keychain "$RUNNER_TEMP/sign.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/notary.p8" "$RUNNER_TEMP/cert.p12"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { name: macos, path: "pair-*", if-no-files-found: error }
 
@@ -64,4 +117,6 @@ jobs:
       - name: create release
         working-directory: dist
         env: { GH_TOKEN: "${{ github.token }}", TAG: "${{ github.ref_name }}", REPO: "${{ github.repository }}" }
-        run: gh release create "$TAG" pair-* checksums.txt --repo "$REPO" --title "$TAG" --notes "Binaries for the pair plugin. Unsigned (pilot). Verify against checksums.txt; the plugin pins these hashes in plugin/checksums.txt."
+        run: |
+          pre=""; case "$TAG" in *-*) pre=--prerelease ;; esac  # e.g. v0.1.7-rc.1: test builds, never pinned
+          gh release create "$TAG" pair-* checksums.txt $pre --repo "$REPO" --title "$TAG" --notes "Binaries for the pair plugin. macOS binaries are signed (Developer ID) and notarized; Windows is unsigned. Verify against checksums.txt; the plugin pins these hashes in plugin/checksums.txt."
