@@ -120,8 +120,17 @@ os.makedirs(os.path.join(tmp, ".ssh"))
 open(os.path.join(tmp, ".ssh", "id_rsa"), "w").write("not a real key")
 text, err = b.tool("send_file", path=os.path.join(tmp, ".ssh", "id_rsa"))
 assert err and "secret" in text, text
-big = os.path.join(tmp, "big.bin")
-open(big, "wb").write(b"x" * (6 * 1024 * 1024))
+mid = os.path.join(tmp, "mid.bin")  # over the old 5 MB limit: streams now
+mblob = os.urandom(6 * 1024 * 1024)
+open(mid, "wb").write(mblob)
+assert not b.tool("send_file", path=mid)[1]
+got = a.event("file", timeout=90)["content"].split("Saved to ")[1].split(". It came")[0]
+assert open(got, "rb").read() == mblob, "6 MB file differs"
+b.event("file_delivered", timeout=90)
+os.remove(got)
+big = os.path.join(tmp, "big.bin")  # sparse: over the 100 MB direct limit without writing 100 MB
+with open(big, "wb") as f:
+    f.truncate(101 * 1024 * 1024)
 text, err = b.tool("send_file", path=big)
 assert err and "limit" in text, text
 for f in (path, path2):

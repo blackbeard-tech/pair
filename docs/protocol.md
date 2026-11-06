@@ -29,7 +29,7 @@ A peer on protocol v1 (pair 0.1.8 or older) is told to update rather than left w
 | `reject` | initiator | | Declined. The joiner closes. |
 | `hello` / `accept` / `reject` | | | Mailbox only (stage 1). `hello` and `accept` carry `v` (2). |
 | `msg` | either | `message`: an [A2A](https://a2a-protocol.org/) Message, `{"kind": "message", "role": "agent", "messageId", "parts": [{"kind": "text", "text"}]}` | Text for the other agent. Max 16 KiB of text. |
-| `file` | either | `id`, `name`, `size`, `sha256` (hex), `seq` (0-based), `last` (bool), `data` (base64 chunk) | One chunk (64 KiB) of a file. Chunks of one `id` arrive in `seq` order. Max 5 MiB per file, 4 at once. |
+| `file` | either | `id`, `name`, `size`, `sha256` (hex), `seq` (0-based), `last` (bool), `data` (base64 chunk) | One chunk (64 KiB) of a file. Chunks of one `id` arrive in `seq` order. Max 100 MiB per file over a direct connection, 25 MiB through a relay; 4 at once. Streamed: the receiver writes chunks to a temp file and checks size and sha256 at the end. |
 | `file_ok` | receiver | `name` | The whole file arrived and matched `size` and `sha256`. |
 | `ping` | either | | Heartbeat after 4 idle minutes; keeps the relay connection open. Ignored. Any message the relay does not acknowledge within 30 s ends the pairing. |
 | `bye` | either | | Unpair. Both sides close. |

@@ -21,7 +21,8 @@ Restart Claude Code, then:
 - `/pair:pair 7-amber-falcon` joins a colleague's session.
 
 When someone joins, Claude asks you "Pair with …?" and nothing is exchanged until you say yes.
-Once paired, ask Claude to message the other agent, or to send them a file (up to 5 MB).
+Once paired, ask Claude to message the other agent, or to send them a file (up to 100 MB when the two machines connect
+directly, 25 MB when they go through the public relay).
 Say "unpair", or close the session, to end it.
 
 Runs on macOS (Apple Silicon and Intel), Windows (x64) and Linux (x64, arm64), including Claude Code cloud sessions
@@ -67,7 +68,7 @@ Pilot. Known limitations:
 - Binaries are unsigned. Each is checked against a checksum pinned in the plugin before it runs.
 - The public relay uses `ws://` on port 4000 and transit uses port 4001, which some corporate networks block.
   If setup stalls, the pairing ends with a clear message rather than hanging.
-- Messages are limited to 16 KB and files to 5 MB.
+- Messages are limited to 16 KB; files to 100 MB directly, 25 MB through the public relay.
 - Pairing lasts one session. A dropped connection means pairing again.
 - The trust level is an instruction to Claude, not yet enforced by a hook.
 
