@@ -1,4 +1,4 @@
-# release v0.1.7  (binaries the launchers fetch; they refuse any asset whose sha256 is not listed here)
-ea92cb3996cc39af7becb5a69a33a888ca858d53b0e8ec1c7efd9ccf8912918c  pair-aarch64-apple-darwin
-312a2a3f69c4dd5e5ff39081c6e2de81bade4f44ed81be9d2fa19135586472c0  pair-x86_64-apple-darwin
-d8aa4e1440f4fb835eeeb2fb36a2fef6b11029b76bfe6a9ccedfdff3b7e1da68  pair-x86_64-pc-windows-gnu.exe
+# release v0.1.8  (binaries the launchers fetch; they refuse any asset whose sha256 is not listed here)
+d8d763499452182860b85a62289cfc1dd744a1fc2afcbfb0992b643599a73672  pair-aarch64-apple-darwin
+07bb0de54c8a0f7487f79bfee01bb43ca1b57182d686b59d536bbefc43763ce0  pair-x86_64-apple-darwin
+47c3475155ef598224785ca7a1939dfedc54b0ba7b70471b34f7dd7d3f9f7b9f  pair-x86_64-pc-windows-gnu.exe
