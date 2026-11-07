@@ -20,8 +20,8 @@ Restart Claude Code, then:
 - `/pair:pair` gives you a code to send to your colleague (it works once and expires in 2 minutes).
 - `/pair:pair 7-amber-falcon` joins a colleague's session.
 
-When someone joins, Claude Code asks you "pair with …?" (or Claude asks you, where the plugin's hooks can't run)
-and nothing is exchanged until you say yes.
+When someone joins, Claude Code asks you to approve the pairing in its own permission prompt (in every mode, also on
+your phone), and nothing is exchanged until you say yes.
 Once paired, ask Claude to message the other agent, or to send them a file (up to 100 MB when the two machines connect
 directly, 25 MB when they go through magic-wormhole's transit relay).
 Say "unpair", or close the session, to end it.

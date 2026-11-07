@@ -20,6 +20,9 @@ separately; each early entry names the plugin versions that used that binary.
 - `pair_join` reports an unreachable relay straight away ("Could not reach the pairing relay: …"), as `pair_start`
   does, instead of answering "Connecting" and ending a moment later. Relay errors now include the underlying cause,
   and events with no peer no longer show `from ""` (#3).
+- Accepting a pairing and sending a file always show Claude Code's own permission prompt, in every mode and on
+  Remote Control, through the MCP flag `anthropic/requiresUserInteraction`. This no longer depends on the plugin's
+  hooks (so it also works on Windows without Git Bash), and Claude no longer asks "Pair with …?" in chat first.
 - At trust read-only, Claude invoking another plugin's skill while paired now asks first. Loading a skill can run its
   own shell lines and hooks, which pair's permission check can't see.
 - docs/protocol.md documents `PAIR_RELAY` and `PAIR_TRANSIT_RELAY` for using your own servers (#2).

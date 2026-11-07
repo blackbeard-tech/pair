@@ -273,8 +273,10 @@ def pretool(tool, mode="default", tool_input=None):
                        input=json.dumps({"session_id": hsid, "tool_name": tool, "permission_mode": mode,
                                          "tool_input": tool_input or {}}))
     return json.loads(r.stdout)["hookSpecificOutput"] if r.stdout.strip() else None
-d = pretool("mcp__plugin_pair_pair__pair_accept")
-assert d["permissionDecision"] == "ask" and "pair with Ned" in d["permissionDecisionReason"], d
+# pair_accept and send_file prompt through their requiresUserInteraction flag, not the hook.
+flagged = {t["name"] for t in m.rpc("tools/list")["tools"] if t.get("_meta", {}).get("anthropic/requiresUserInteraction") is True}
+assert flagged == {"pair_accept", "send_file"}, flagged
+assert pretool("mcp__plugin_pair_pair__pair_accept") is None
 assert pretool("Bash") is None, "not paired yet: no trust enforcement"
 assert not m.tool("pair_accept")[1]
 n.event("paired")
@@ -284,8 +286,7 @@ assert pretool("mcp__plugin_pair_pair__send_to_peer") is None
 d = pretool("Bash")
 assert d["permissionDecision"] == "ask" and 'trust "read-only"' in d["permissionDecisionReason"], d
 assert pretool("Edit", mode="bypassPermissions")["permissionDecision"] == "deny"
-d = pretool("mcp__plugin_pair_pair__send_file", tool_input={"path": __file__})
-assert d["permissionDecision"] == "ask" and "send" in d["permissionDecisionReason"], d
+assert pretool("mcp__plugin_pair_pair__send_file", tool_input={"path": __file__}) is None
 n.tool("send_to_peer", text="one")
 assert wakes.get(timeout=30) == ['pair message from "Ned" (trust: read-only): "one"']
 sdir = os.path.dirname(watched)
