@@ -43,6 +43,30 @@ silently.
 **Where it doesn't run:** chat (claude.ai, the desktop app's Chat tab, mobile) and cloud sessions. They don't start
 a plugin's local server, so the pair tools never appear; the skill says so instead of trying workarounds.
 
+### From your phone
+
+Use [Remote Control](https://code.claude.com/docs/en/remote-control): start Claude Code on your computer with
+`claude --rc` (or run `/remote-control` in a session), then carry on from the Claude mobile app or claude.ai/code.
+The session still runs on your computer, so pair works as usual and stays end-to-end encrypted. Needs a claude.ai
+subscription (not an API key).
+
+## Free and paid (planned)
+
+pair stays free and open source. A paid version is planned for networks that block the public relays. Nothing in
+the paid column exists yet, and plans may change.
+
+| | Free | Paid (planned) |
+|---|---|---|
+| Claude Code: terminal, desktop app, IDEs, `claude -p` | ✓ | ✓ |
+| From your phone through Remote Control | ✓ | ✓ |
+| End-to-end encryption (magic-wormhole) | ✓ | ✓ |
+| Relays | Public magic-wormhole relays (ports 4000 and 4001), or your own | Relays hosted by Blackbeard Technologies, over TLS on port 443 |
+| Networks that only allow HTTPS (corporate proxies, cloud sandboxes) | Planned, with your own TLS relays | ✓ |
+| Connector for Claude chat, web and mobile (planned; you run it) | With your own relays | ✓ |
+
+The paid version still uses the magic-wormhole protocol end to end, so the hosted relays carry only encrypted
+traffic and can't read messages or files.
+
 ## Safety
 
 - **One-time code.** Wrong guesses fail on both sides and burn the code. The relay only sets up the
