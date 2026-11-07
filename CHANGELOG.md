@@ -16,7 +16,7 @@ separately; each early entry names the plugin versions that used that binary.
 - Relays named by the other side are ignored; only our configured transit relay is used.
 - A message from the relay operator, if any, is shown to you when pairing.
 - **Bigger files.** Files stream instead of being held in memory: up to 100 MB when the two machines connect
-  directly, 25 MB when they go through the public relay (was 5 MB).
+  directly, 25 MB when they go through the transit relay (was 5 MB).
 - **Clear message where pair can't run.** In chat, claude.ai and cloud sessions the plugin's local server never
   starts; the `/pair:pair` skill now says so instead of trying workarounds.
 - Threat model: peer-chosen connection addresses (T13) and the third-party STUN server the Rust library uses (T14).
