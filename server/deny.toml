@@ -1,0 +1,23 @@
+# cargo deny check: known vulnerabilities, licences, banned crates, sources. Runs in CI (rust.yml).
+[graph]
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc",
+           "x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"]
+
+[advisories]
+# pin-utils (RUSTSEC-2026-0441, unmaintained) only enters via a wasm32-only dependency, so it's outside the
+# targets above; osv-scanner, which ignores targets, has its own exception in osv-scanner.toml.
+
+[licenses]
+# Exactly the licences in our dependency graph: permissive ones, plus magic-wormhole's EUPL-1.2 (see NOTICE).
+# A new licence fails CI until someone looks at it.
+allow = ["Apache-2.0", "Apache-2.0 WITH LLVM-exception", "MIT", "BSD-2-Clause", "BSD-3-Clause",
+         "Unicode-3.0", "Unlicense", "EUPL-1.2"]
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
