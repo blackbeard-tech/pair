@@ -1,6 +1,6 @@
 @echo off
-rem Windows launcher for the pair channel server. fetch.ps1 ensures this plugin version's
-rem pair.exe is present and checksum-verified, then cmd runs it with stdio passed straight through.
+rem Windows launcher for the pair binary (MCP server, monitor or hook). fetch.ps1 ensures this plugin version's
+rem pair-windows-x64.exe is present and checksum-verified, then cmd runs it with stdio passed straight through.
 setlocal
 rem Started from PowerShell 7, we'd inherit its PSModulePath and Windows PowerShell 5.1 then can't load
 rem its own cmdlets (Get-FileHash not recognised). Empty makes 5.1 use its default.

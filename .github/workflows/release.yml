@@ -6,7 +6,9 @@ name: release
 #   macos-sign   -> artifact macos-signed      (needs the release environment's certificate)
 #   macos-notarize                              (submits to Apple and exits; doesn't wait for the verdict)
 #   notarization-check.yml (hourly, up to 48 h) -> Apple's verdict; artifact macos-notarized when accepted
-#   windows      -> artifact windows
+#   windows      -> artifact windows           (built natively, MSVC)
+#   linux        -> artifacts linux-<target>   (static musl, x64 and arm64)
+#   notices      -> THIRD_PARTY_LICENSES.md    (cargo-about)
 #   publish      -> GitHub release, with the best macOS stage available: signed, else unsigned.
 #   notes        -> records the notarization outcome on the release.
 # Notarization doesn't change a bare binary (Apple stores the ticket online), so a signed release is
@@ -129,7 +131,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { name: windows, path: "pair-*", if-no-files-found: error }
 
-  # Static (musl) Linux binaries, e.g. for Claude Code cloud sessions. Pure Rust, so no C toolchain needed;
+  # Static (musl) Linux binaries, e.g. for Claude Code on Linux. Pure Rust, so no C toolchain needed;
   # each arch builds natively, no package mirror involved.
   linux:
     strategy:

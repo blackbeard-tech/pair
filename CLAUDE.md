@@ -96,11 +96,14 @@ then `twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1`): use it to te
 - `server/`: Rust MCP stdio server (`pair`), magic-wormhole 0.8.1. The mailbox on `relay.magic-wormhole.io`
   (SPAKE2) is used only for setup: hello/accept and transit hints, then closed, as the wormhole CLI does. Traffic
   runs over transit (direct TCP or `transit.magic-wormhole.io:4001`) with a split reader/writer. See docs/protocol.md. Hand-rolled JSON-RPC. Tools: pair_start/join/accept/reject, send_to_peer,
-  unpair, check_messages. `pair watch <data>` is the plugin monitor.
+  send_file, unpair, check_messages. Other modes: `pair watch <data>` (plugin monitor), `pair wait <session dir>`
+  (fallback listener), `pair hook session-start|inbox|pretool` (plugin hooks).
 - Delivery: events go to `<plugin data>/sessions/<CLAUDE_CODE_SESSION_ID>/inbox.jsonl`, printed live by the
-  monitor; a channel notification is added only when the monitor heartbeat is stale; everything is also
+  monitor (terminal) or the FileChanged hook (desktop app, IDEs); a channel notification is added only when
+  neither is active; everything is also
   queued for `check_messages` (for `claude -p`).
-- `plugin/`: manifest, `/pair:pair` skill, monitor, launchers (`scripts/pair` bash for macOS/Git Bash,
+- `plugin/`: manifest, `/pair:pair` skill, monitor, hooks (SessionStart + FileChanged for delivery, PreToolUse to
+  enforce the trust level and confirm pair_accept/send_file; state in `<session dir>/pair.json`), launchers (`scripts/pair` bash for macOS/Git Bash,
   `pair.cmd` + `fetch.ps1` for Windows). Launchers download the release binary named in the
   `# release vX` header of `plugin/checksums.txt` and refuse it unless its sha256 matches.
 - Docs: `docs/threat-model.md` (keep it current when behaviour changes).
@@ -109,9 +112,10 @@ then `twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1`): use it to te
 
 1. Bump `server/Cargo.toml` version and rename CHANGELOG.md's `## Unreleased` to `## X.Y.Z (date)`; commit.
    The release notes are that section plus `.github/release-notes.md`.
-2. `git tag vX.Y.Z` and push the tag: `release.yml` builds macOS (both arches) and Windows and publishes.
+2. `git tag vX.Y.Z` and push the tag: `release.yml` builds macOS (both arches), Windows and Linux (x64,
+   arm64), plus THIRD_PARTY_LICENSES.md and provenance attestations, and publishes.
    Stages save their own artifacts: macos-unsigned (build) -> macos-signed (sign) -> macos-notarized (saved by
-   notarization-check.yml once Apple's ticket exists), plus windows. Publishing waits only for build and
+   notarization-check.yml once Apple's ticket exists), plus windows, linux-*, notices. Publishing waits only for build and
    sign, and uses signed macOS binaries, or unsigned ones (with a warning in the release notes) if signing failed,
    e.g. an expired certificate. Notarization never changes the files. The release run submits to Apple and doesn't
    wait; the release notes carry the submission ID. Hourly, `notarization-check.yml` (on main, no secrets) starts

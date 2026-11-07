@@ -1,4 +1,4 @@
-# Prints the path of this plugin version's verified pair.exe (stdout); errors go to stderr.
+# Prints the path of this plugin version's verified pair-windows-x64.exe (stdout); errors go to stderr.
 # Downloads the release asset on first run and refuses it unless its sha256 is pinned in checksums.txt.
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'

@@ -4,6 +4,8 @@
 no push, tag, release or repo change without the owner's explicit go in the current conversation,
 never force-push or move release tags, keep `references/` and the private beads remote private.
 
+For build and test commands, architecture, releasing and conventions, read the rest of [CLAUDE.md](CLAUDE.md).
+
 This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
 
 > **Architecture in one line:** Issues live in a local Dolt database

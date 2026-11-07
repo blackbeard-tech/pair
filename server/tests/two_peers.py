@@ -1,7 +1,8 @@
-"""End-to-end: two `pair` MCP servers pair over the relay and exchange messages.
+"""End-to-end: two `pair` MCP servers pair (setup over the relay mailbox,
+then transit) and exchange messages and files.
 
 Usage: python3 -I server/tests/two_peers.py server/target/release/pair
-Stdlib only. Talks to the public relay, so it needs network.
+Stdlib only. Uses the public relay (needs network) unless PAIR_RELAY points at a local mailbox server.
 """
 
 import json

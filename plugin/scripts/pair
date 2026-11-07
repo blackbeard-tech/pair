@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Starts the pair channel server (stdout is the MCP transport: all messages go to stderr).
+# Starts the pair binary: MCP server, monitor or hook (for the server, stdout is the MCP transport: all messages go to stderr).
 # First run fetches this version's release binary and verifies it against checksums.txt,
 # which is pinned in the plugin commit you installed.
 set -euo pipefail

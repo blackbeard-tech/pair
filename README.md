@@ -22,11 +22,10 @@ Restart Claude Code, then:
 
 When someone joins, Claude Code asks you "pair with …?" and nothing is exchanged until you say yes.
 Once paired, ask Claude to message the other agent, or to send them a file (up to 100 MB when the two machines connect
-directly, 25 MB when they go through the public relay).
+directly, 25 MB when they go through magic-wormhole's transit relay).
 Say "unpair", or close the session, to end it.
 
-Runs on macOS (Apple Silicon and Intel), Windows (x64) and Linux (x64, arm64), including Claude Code cloud sessions
-if their network allows the relay.
+Runs on macOS (Apple Silicon and Intel), Windows (x64) and Linux (x64, arm64).
 
 ## How messages reach Claude
 
@@ -45,13 +44,14 @@ a plugin's local server, so the pair tools never appear; the skill says so inste
 
 ## Safety
 
-- **One-time code.** Wrong guesses fail on both sides and burn the code. The relay only passes on
-  encrypted messages ([magic-wormhole](https://magic-wormhole.readthedocs.io/): SPAKE2 key exchange).
+- **One-time code.** Wrong guesses fail on both sides and burn the code. The relay only sets up the
+  pairing, and everything is end-to-end encrypted ([magic-wormhole](https://magic-wormhole.readthedocs.io/): SPAKE2 key exchange).
 - **You approve every pairing.** The request shows who is joining: `user@host · git name · git email`.
 - **Peer messages are requests, not instructions.** You choose a trust level when pairing, and Claude Code itself
   enforces it while you're paired: `read-only` (default: reading files and messaging the peer run normally,
   anything else needs your OK), `ask` (every action needs your OK) or `normal` (your usual permissions). Claude
-  Code can't tell whether an action came from you or the peer, so the level applies to everything while paired.
+  Code can't tell whether an action came from you or the peer, so the level applies to everything while paired. On Windows this needs Git for
+  Windows (Git Bash), like live delivery in the desktop app.
 - **Approvals stay with you.** A peer can never approve tool use in your session.
 - **Files:** every file you send needs your OK in Claude Code's own permission prompt (Claude can't answer it for
   you, and auto mode doesn't skip it), and secret-looking files (`.ssh`, `.env`, keys) are refused.
@@ -60,6 +60,22 @@ a plugin's local server, so the pair tools never appear; the skill says so inste
   machines when possible, or through magic-wormhole's transit relay. Relays see IP addresses, timing and sizes, never
   content. A direct connection means each side learns the other's IP address.
 
+## What it runs and connects to
+
+- **First run:** the plugin's launcher downloads this version's `pair` binary from this repository's GitHub releases
+  (with `gh` if it's installed, otherwise `curl`; PowerShell on Windows) and refuses it unless its sha256 matches
+  the one pinned in the plugin ([plugin/checksums.txt](plugin/checksums.txt)). The binary is built from
+  [server/](server/) by [release.yml](.github/workflows/release.yml), with a build provenance attestation.
+- **When pairing:** `relay.magic-wormhole.io:4000` (sets up the pairing), then a direct TCP connection to the other
+  machine or `transit.magic-wormhole.io:4001`. The magic-wormhole library also asks the STUN server
+  `stun.piegames.de:3478` for this machine's public address when trying a direct connection.
+- **Sent to the other side:** your messages and the files you approve, plus the name you appear as
+  (`user@host · git name · git email` unless you set another).
+- **On your machine:** the plugin's data folder (inbox, received files, the session's pairing state). Its hooks
+  read that folder; while you're paired the `PreToolUse` hook adds permission prompts as described above. It
+  never changes your settings.
+- Nothing else: no analytics, no other servers.
+
 Details and known limitations are in the [threat model](docs/threat-model.md). Report security issues
 privately as described in [SECURITY.md](SECURITY.md).
 
@@ -67,10 +83,11 @@ privately as described in [SECURITY.md](SECURITY.md).
 
 Pilot. Known limitations:
 
-- Binaries are unsigned. Each is checked against a checksum pinned in the plugin before it runs.
+- macOS binaries are signed and notarized; Windows and Linux binaries are unsigned. Each is checked against a
+  checksum pinned in the plugin before it runs.
 - The public relay uses `ws://` on port 4000 and transit uses port 4001, which some corporate networks block.
   If setup stalls, the pairing ends with a clear message rather than hanging.
-- Messages are limited to 16 KB; files to 100 MB directly, 25 MB through the public relay.
+- Messages are limited to 16 KB; files to 100 MB directly, 25 MB through the transit relay.
 - Pairing lasts one session. A dropped connection means pairing again.
 
 ## Development

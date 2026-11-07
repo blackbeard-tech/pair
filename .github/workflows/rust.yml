@@ -1,6 +1,6 @@
 name: rust
-# Cost: free private repo = 2000 min/month, Windows bills 2x, macOS 10x.
-# Push/PR: one Linux runner, only when server/ changes. Target OSes: manual dispatch (and releases later).
+# Kept small on purpose (free account): push/PR runs one Linux runner, only when server/ changes.
+# macOS + Windows: manual dispatch only (release.yml builds them but doesn't run tests).
 on:
   push: { branches: [main], paths: ["server/**", ".github/workflows/rust.yml"] }
   pull_request: { paths: ["server/**", ".github/workflows/rust.yml"] }
