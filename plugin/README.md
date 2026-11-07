@@ -8,6 +8,16 @@ and the two agents can message each other and exchange files you approve, end-to
 Built by [Blackbeard Technologies](https://blackbeard.tech). Source, full documentation and threat model:
 [github.com/blackbeard-tech/pair](https://github.com/blackbeard-tech/pair).
 
+## Install
+
+In Claude Code:
+
+```
+/plugin install pair --marketplace blackbeard-tech/marketplace
+```
+
+Then restart Claude Code.
+
 ## Use
 
 - `/pair:pair` gives you a code to share (it works once and expires in 2 minutes).
