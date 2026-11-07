@@ -6,7 +6,7 @@ What changed in each release of pair, newest first. Install or update in Claude 
 From 0.1.6 the plugin and its binary always share one version number. Before that they were numbered
 separately; each early entry names the plugin versions that used that binary.
 
-## Unreleased
+## 0.1.10 (2026-11-07)
 
 - **The trust level is enforced.** While paired, Claude Code itself asks you before any action beyond reading
   (trust `read-only`, the default) or before every action (trust `ask`), even in auto mode. It can't tell whether an
