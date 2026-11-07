@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <path id="body" d="M50 14C42 14 38 22 37 31C36 40 22 46 22 64C22 82 35 94 50 94C65 94 78 82 78 64C78 46 64 40 63 31C62 22 58 14 50 14Z"/>
+    <g id="top">
+      <path d="M50 16L52 5" stroke="#6e2a1c" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M52 11C56 4 65 2 71 5C67 12 58 14 52 11Z" fill="#4c9a3c"/>
+    </g>
+  </defs>
+  <rect width="100" height="100" rx="22" fill="#163828"/>
+  <g transform="translate(8 1) scale(.98)">
+    <use href="#body" fill="#d2cf48"/>
+    <use href="#top"/>
+  </g>
+  <g transform="translate(74 18.5) scale(-.8 .8)">
+    <use href="#body" fill="#8f9e2a"/>
+    <use href="#top"/>
+  </g>
+</svg>
