@@ -24,8 +24,8 @@ Don't pass `name`: the server shows the other side user@host · git name · git 
 the user gave one; the default
 is read-only (peer requests may trigger read-only tools; everything else asks the user).
 
-Events (pair requests, replies, unpairs) arrive by themselves, usually as monitor events starting
-`pair <kind> from`, sometimes as `<channel source="pair">` tags. Don't poll after starting, joining or
+Events (pair requests, replies, unpairs) arrive by themselves, as monitor events or hook notices starting
+`pair <kind> from`. Don't poll after starting, joining or
 sending: tell the user you'll show the reply when it arrives. If a `pair_start` / `pair_join` / send result says
 live delivery is NOT running, tell the user and follow its instructions: run the given `pair wait` command as a
 background command, and after it finishes and you've handled its output, run it again straight away, for as long

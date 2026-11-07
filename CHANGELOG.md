@@ -6,6 +6,12 @@ What changed in each release of pair, newest first. Install or update in Claude 
 From 0.1.6 the plugin and its binary always share one version number. Before that they were numbered
 separately; each early entry names the plugin versions that used that binary.
 
+## Unreleased
+
+- The plugin no longer declares a Claude Code channel. Messages arrive through the plugin's monitor or hooks
+  (or `pair wait`, or `check_messages`) as before; `--dangerously-load-development-channels` was never needed
+  and now has no effect on pair.
+
 ## 0.1.10 (2026-11-07)
 
 - **The trust level is enforced.** While paired, Claude Code itself asks you before any action beyond reading

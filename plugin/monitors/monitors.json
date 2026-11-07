@@ -2,6 +2,6 @@
   {
     "name": "pair",
     "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/pair\" watch \"${CLAUDE_PLUGIN_DATA}\"",
-    "description": "Live pairing events (requests, peer messages, unpairs); works without channels"
+    "description": "Live pairing events (requests, peer messages, unpairs)"
   }
 ]

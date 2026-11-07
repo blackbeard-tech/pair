@@ -6,8 +6,10 @@ Stdlib only. Uses the public relay (needs network) unless PAIR_RELAY points at a
 """
 
 import json
+import os
 import queue
 import subprocess
+import tempfile
 import sys
 import threading
 import time
@@ -18,12 +20,16 @@ BIN = sys.argv[1]
 class Peer:
     def __init__(self, label, env=None):
         self.label, self.n = label, 0
+        # Events go to <PAIR_DATA>/sessions/<session id>/inbox.jsonl (what the monitor, hooks and pair wait read).
+        env = env or dict(os.environ, PAIR_DATA=tempfile.mkdtemp(), CLAUDE_CODE_SESSION_ID=f"test-{label}")
+        self.inbox = os.path.join(env["PAIR_DATA"], "sessions", env["CLAUDE_CODE_SESSION_ID"], "inbox.jsonl")
+        self.seen = 0
         self.answer = "accept"  # reply to elicitation dialogs (the human's yes/no)
         self.p = subprocess.Popen([BIN], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
         self.q = queue.Queue()
         threading.Thread(target=self._read, daemon=True).start()
         r = self.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {"elicitation": {}}, "clientInfo": {"name": "t"}})
-        assert r["capabilities"]["experimental"] == {"claude/channel": {}}, r
+        assert r["capabilities"] == {"tools": {}}, r  # no channel, no permission relay
 
     def _read(self):
         for line in self.p.stdout:
@@ -53,12 +59,23 @@ class Peer:
         return r["content"][0]["text"], r["isError"]
 
     def event(self, kind, timeout=30):
-        while True:
-            m = self.q.get(timeout=timeout)
-            if m.get("method") == "notifications/claude/channel":
-                print(f"  {self.label} <- {m['params']['meta']}: {m['params']['content'][:80]!r}")
-                assert m["params"]["meta"]["kind"] == kind, m
-                return m["params"]
+        """The next event in this peer's inbox (skipping the hook probe); it must be `kind`."""
+        end = time.time() + timeout
+        while time.time() < end:
+            try:
+                lines = open(self.inbox).read().splitlines()
+            except FileNotFoundError:
+                lines = []
+            for line in lines[self.seen:]:
+                self.seen += 1
+                e = json.loads(line)
+                if e["meta"]["kind"] == "probe":
+                    continue
+                print(f"  {self.label} <- {e['meta']}: {e['content'][:80]!r}")
+                assert e["meta"]["kind"] == kind, e
+                return e
+            time.sleep(0.1)
+        raise TimeoutError(f"{self.label}: no {kind} event within {timeout}s")
 
 
 def code_of(text):
@@ -86,7 +103,7 @@ if IDLE:
 assert not b.tool("send_to_peer", text="hello from bob\u202e")[1]
 msg = a.event("message")
 assert msg["content"] == "hello from bob" and msg["meta"]["trust"] == "read-only", msg
-inbox = a.tool("check_messages")[0]  # no-channel fallback: same events, queued
+inbox = a.tool("check_messages")[0]  # claude -p fallback: same events, queued
 assert "[pair_request]" in inbox and "hello from bob" in inbox and "State: Paired" in inbox, inbox
 assert "No new events" in a.tool("check_messages")[0]
 assert not a.tool("send_to_peer", text="hi bob")[1]
@@ -156,8 +173,8 @@ assert "@" in e.event("pair_request")["meta"]["peer"]
 assert not e.tool("pair_reject")[1]
 assert "declined" in f.event("unpaired")["content"]
 
-# Monitor path (works without channels): with a live `pair watch` for G's session, G's events go to
-# its session inbox and come out of the watcher as single lines, not as channel notifications.
+# Monitor path: with a live `pair watch` for G's session, G's events go to its session inbox and
+# come out of the watcher as single lines.
 import os, tempfile, time
 data = tempfile.mkdtemp()
 genv = dict(os.environ, PAIR_DATA=data, CLAUDE_CODE_SESSION_ID="test-session-g")
@@ -180,7 +197,6 @@ assert not h.tool("send_to_peer", text="line1\nline2")[1]
 line = wq.get(timeout=30)
 print("  watch <-", line)
 assert line == 'pair message from "Hal" (trust: read-only): "line1\\nline2"', line
-assert not any(m.get("method") == "notifications/claude/channel" for m in list(g.q.queue)), "G got a channel notification too"
 if os.name != "nt":
     assert os.stat(os.path.join(sdir, "inbox.jsonl")).st_mode & 0o777 == 0o600
 g.tool("unpair")

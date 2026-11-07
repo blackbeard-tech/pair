@@ -99,9 +99,8 @@ then `twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1`): use it to te
   send_file, unpair, check_messages. Other modes: `pair watch <data>` (plugin monitor), `pair wait <session dir>`
   (fallback listener), `pair hook session-start|inbox|pretool` (plugin hooks).
 - Delivery: events go to `<plugin data>/sessions/<CLAUDE_CODE_SESSION_ID>/inbox.jsonl`, printed live by the
-  monitor (terminal) or the FileChanged hook (desktop app, IDEs); a channel notification is added only when
-  neither is active; everything is also
-  queued for `check_messages` (for `claude -p`).
+  monitor (terminal), the FileChanged hook (desktop app, IDEs) or `pair wait`; everything is also queued for
+  `check_messages` (for `claude -p`). No Claude Code channel (removed in 0.1.11).
 - `plugin/`: manifest, `/pair:pair` skill, monitor, hooks (SessionStart + FileChanged for delivery, PreToolUse to
   enforce the trust level and confirm pair_accept/send_file; state in `<session dir>/pair.json`), launchers (`scripts/pair` bash for macOS/Git Bash,
   `pair.cmd` + `fetch.ps1` for Windows). Launchers download the release binary named in the
