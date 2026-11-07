@@ -12,3 +12,9 @@ updates:
     cooldown: { default-days: 7 }
     groups:
       cargo: { patterns: ["*"] }
+  - package-ecosystem: pip # the local test relay (server/tests/mailbox-requirements.txt)
+    directory: /server/tests
+    schedule: { interval: monthly }
+    cooldown: { default-days: 7 }
+    groups:
+      pip: { patterns: ["*"] }

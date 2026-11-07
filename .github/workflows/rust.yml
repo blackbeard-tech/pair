@@ -43,7 +43,18 @@ jobs:
       - run: cargo clippy --locked --release -- -D warnings
       - run: cargo test --locked
       - run: cargo build --locked --release
-      - name: e2e over public relay
+      # Linux: a local mailbox server (hash-pinned wheels), so CI doesn't fail when the public relay is slow.
+      # The weekly run and the macOS/Windows runs also go over the public relay.
+      - name: e2e over a local relay
+        if: runner.os == 'Linux'
+        run: |
+          python3 -m venv /tmp/mbx
+          /tmp/mbx/bin/pip install -q --require-hashes --only-binary :all: --no-deps -r tests/mailbox-requirements.txt
+          /tmp/mbx/bin/twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1 --channel-db=/tmp/c.db --usage-db=/tmp/u.db &
+          for _ in $(seq 30); do (exec 3<>/dev/tcp/127.0.0.1/4777) 2>/dev/null && break; sleep 1; done
+          PAIR_RELAY=ws://127.0.0.1:4777/v1 python3 -I tests/two_peers.py target/release/pair
+      - name: e2e over the public relay
+        if: runner.os != 'Linux' || github.event_name == 'schedule'
         run: |
           PY=$(command -v python3 || command -v python)
           BIN=target/release/pair; [ "$RUNNER_OS" = Windows ] && BIN=$BIN.exe
