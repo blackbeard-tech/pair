@@ -28,3 +28,4 @@ dist/
 
 # Rust
 target/
+plugin/evals/results/
