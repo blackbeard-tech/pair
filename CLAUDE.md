@@ -84,7 +84,7 @@ cargo clippy --release --manifest-path server/Cargo.toml -- -D warnings
 cargo build --release --manifest-path server/Cargo.toml
 python3 -I server/tests/two_peers.py server/target/release/pair   # e2e over the public relay
 claude plugin validate plugin --strict
-claude plugin eval plugin -j 4 --trust-plugin --no-publish --max-cost-usd 5   # skill evals, mocked tools (~$1.50)
+claude plugin eval plugin --model haiku --ablation none -j 4 --trust-plugin --no-publish --max-cost-usd 1   # skill evals, mocked tools (~$0.10)
 ```
 
 Try a local build in Claude Code: start it with `PAIR_BIN=<path to server/target/release/pair>`.
