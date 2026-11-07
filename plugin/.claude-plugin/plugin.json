@@ -1,6 +1,6 @@
 {
   "name": "pair",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Pair your Claude Code session with a colleague's using a one-time code, then let the two agents message each other, end-to-end encrypted. Brought to you by Blackbeard Technologies.",
   "author": {
     "name": "Blackbeard Technologies",
