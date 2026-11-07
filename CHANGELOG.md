@@ -11,6 +11,11 @@ separately; each early entry names the plugin versions that used that binary.
 - The plugin no longer declares a Claude Code channel. Messages arrive through the plugin's monitor or hooks
   (or `pair wait`, or `check_messages`) as before; `--dangerously-load-development-channels` was never needed
   and now has no effect on pair.
+- A dropped connection reconnects by itself for up to 10 minutes, with no new code or approval, when both sides run
+  0.1.11 or later. You're told when it drops and when it's back; messages sent meanwhile go out once it's back.
+  Drops are noticed within about 95 s (a heartbeat every 30 s).
+- Closing a Claude Code session now tells the peer at once ("the other side unpaired"), instead of the peer
+  finding out when its next message fails.
 - Shorter banner: "pair · By Blackbeard Technologies · https://blackbeard.tech".
 
 ## 0.1.10 (2026-11-07)

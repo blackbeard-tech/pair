@@ -302,4 +302,31 @@ n.event("unpaired")
 time.sleep(1)
 assert pretool("Bash") is None, "after unpairing the trust level no longer applies"
 
+# Resume: a stalled connection reconnects by itself on a code both sides derive, with no new approval.
+# A frozen process (SIGSTOP) stands in for a laptop asleep or off the network. PAIR_TEST_FAST shortens the timers.
+if os.name != "nt":
+    import signal
+    fenv = lambda label: dict(os.environ, PAIR_DATA=tempfile.mkdtemp(), CLAUDE_CODE_SESSION_ID=f"test-{label}",
+                              PAIR_TEST_FAST="1")
+    r, s = Peer("R", env=fenv("R")), Peer("S", env=fenv("S"))
+    s.tool("pair_join", code=code_of(r.tool("pair_start", name="Rae")[0]), name="Sol")
+    r.event("pair_request")
+    assert not r.tool("pair_accept")[1]
+    s.event("paired")
+    os.kill(s.p.pid, signal.SIGSTOP)
+    assert "dropped" in r.event("connection", timeout=20)["content"]
+    text, err = r.tool("send_to_peer", text="while you were away")
+    assert not err and text.startswith("queued"), text
+    time.sleep(2)
+    os.kill(s.p.pid, signal.SIGCONT)
+    assert "dropped" in s.event("connection", timeout=20)["content"]
+    assert "Reconnected" in s.event("connection", timeout=40)["content"]
+    assert "Reconnected" in r.event("connection", timeout=40)["content"]
+    assert s.event("message")["content"] == "while you were away"
+    assert not s.tool("send_to_peer", text="back")[1]
+    assert r.event("message")["content"] == "back"
+    # Claude Code closing a session says bye, so the peer ends at once instead of trying to reconnect.
+    r.p.stdin.close()
+    assert "other side unpaired" in s.event("unpaired", timeout=10)["content"]
+
 print("PASS")

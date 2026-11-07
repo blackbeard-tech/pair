@@ -26,17 +26,38 @@ update, rather than left waiting.
 
 | `t` | Sent by | Fields | Meaning |
 |---|---|---|---|
-| `hello` | joiner, first | `v` (2), `name` | Mailbox only. Asks to pair. The initiator's owner approves or rejects. |
-| `accept` | initiator | `v` (2), `name` | Mailbox only. Approved. Both sides are now paired. |
+| `hello` | joiner, first | `v` (2), `name`, `resume` (true, 0.1.11+) | Mailbox only. Asks to pair. The initiator's owner approves or rejects. |
+| `accept` | initiator | `v` (2), `name`, `resume` (true, 0.1.11+) | Mailbox only. Approved. Both sides are now paired. |
 | `reject` | initiator | | Mailbox only. Declined (or the joiner is on v1). The joiner closes. |
 | `transit` | both, after `accept` | `hints` | Mailbox only. Direct-connection hints. Relay hints from the peer are ignored: each side uses only its own configured transit relay. |
 | `msg` | either | `message`: an [A2A](https://a2a-protocol.org/) Message, `{"kind": "message", "role": "agent", "messageId", "parts": [{"kind": "text", "text"}]}` | Text for the other agent. Max 16 KiB of text. |
 | `file` | either | `id`, `name`, `size`, `sha256` (hex), `seq` (0-based), `last` (bool), `data` (base64 chunk) | One chunk (64 KiB) of a file. Chunks of one `id` arrive in `seq` order. Max 100 MiB per file over a direct connection, 25 MiB through a relay; 4 at once. Streamed: the receiver writes chunks to a temp file and checks size and sha256 at the end. |
 | `file_ok` | receiver | `name` | The whole file arrived and matched `size` and `sha256`. |
-| `ping` | either | | Heartbeat after 4 idle minutes; keeps NAT and transit-relay paths open. Ignored. Any record the connection doesn't accept within 30 s ends the pairing. |
-| `bye` | either | | Unpair. Both sides close. |
+| `ping` | either | | Heartbeat: every 30 s when both sides sent `resume`, otherwise every 4 minutes. Keeps NAT and transit-relay paths open; ignored on receipt. With `resume`, a peer silent for 95 s counts as dropped. Any record the connection doesn't accept within 30 s counts as dropped. |
+| `bye` | either | | Unpair. Both sides close. Also sent when the Claude Code session closes. |
 
 On the mailbox, before `accept`, everything except `hello` / `accept` / `reject` / `bye` is dropped.
+
+## Reconnecting
+
+When both sides sent `resume: true`, a dropped transit connection (error, EOF, a send not accepted within 30 s,
+or 95 s of silence) is reconnected instead of ending the pairing:
+
+1. Before closing the mailbox after `accept`, both sides derive `R` = the pairing key's subkey for purpose
+   `"blackbeard.tech/pair/resume"`. It stays in memory only.
+2. Time is cut into 30 s slots (`slot = unix seconds / 30`). For a slot, the code is
+   `"9" + 24 digits` (the first 16 bytes of R's subkey `"nameplate/{slot}"` as a big-endian integer, mod 10^24)
+   + `-` + the hex of R's subkey `"password/{slot}"`. Both sides compute it without talking. The relay sees
+   only the nameplate, which is unlinkable to the pairing and to the password.
+3. Each side claims that nameplate on the mailbox (allocating it if absent), runs SPAKE2 with the code, and if
+   it completes, swaps transit hints and opens transit as at first. No new approval: only the two original
+   processes know R. Display names and trust levels carry over.
+4. If the peer doesn't turn up by the end of the slot plus 5 s (clock skew allowance), or any step fails, the side
+   tries the next slot. A slot's code is never used twice. After 10 minutes, the pairing ends.
+
+Messages the user sends while reconnecting are queued and go out on the new connection. A file being sent or
+received when the connection dropped is abandoned, and both owners are told. Records in flight at the moment of
+the drop can be lost.
 
 ## Sending files
 

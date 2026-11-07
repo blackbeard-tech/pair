@@ -89,7 +89,8 @@ Pilot. Known limitations:
 - The public relay uses `ws://` on port 4000 and transit uses port 4001, which some corporate networks block.
   If setup stalls, the pairing ends with a clear message rather than hanging.
 - Messages are limited to 16 KB; files to 100 MB directly, 25 MB through the transit relay.
-- Pairing lasts one session. A dropped connection means pairing again.
+- Pairing lasts one session. A dropped connection (wifi change, laptop asleep) reconnects by itself for up to
+  10 minutes; after that, or after restarting Claude Code, pair again.
 
 ## Development
 
