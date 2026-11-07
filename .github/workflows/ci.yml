@@ -39,9 +39,12 @@ jobs:
             --config=osv-scanner.toml
             ./
 
-      - name: actionlint
+      - name: actionlint (pinned binary, checksum-verified)
+        env: { V: 1.7.12, SHA: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8 }
         run: |
-          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/914e7df21a07ef503a81201c76d2b11c789d3fca/scripts/download-actionlint.bash) 1.7.12 /tmp
+          curl -fsSLo /tmp/al.tgz "https://github.com/rhysd/actionlint/releases/download/v${V}/actionlint_${V}_linux_amd64.tar.gz"
+          echo "${SHA}  /tmp/al.tgz" | sha256sum -c -
+          tar xzf /tmp/al.tgz -C /tmp actionlint
           /tmp/actionlint -color
 
       - uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
@@ -66,7 +69,7 @@ jobs:
       - name: no refs/dolt in this repo
         env: { REPO: "${{ github.repository }}", GH_TOKEN: "${{ github.token }}" }
         run: |
-          refs=$(git ls-remote "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" 'refs/dolt/*')
+          refs=$(gh api "repos/${REPO}/git/matching-refs/dolt" --jq '.[].ref')
           if [ -n "$refs" ]; then echo "::error::refs/dolt found: $refs"; exit 1; fi
 
   dependency-review:
