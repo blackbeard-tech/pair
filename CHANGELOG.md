@@ -17,6 +17,10 @@ separately; each early entry names the plugin versions that used that binary.
 - Closing a Claude Code session now tells the peer at once ("the other side unpaired"), instead of the peer
   finding out when its next message fails.
 - Shorter banner: "pair · By Blackbeard Technologies · https://blackbeard.tech".
+- `pair_join` reports an unreachable relay straight away ("Could not reach the pairing relay: …"), as `pair_start`
+  does, instead of answering "Connecting" and ending a moment later. Relay errors now include the underlying cause,
+  and events with no peer no longer show `from ""` (#3).
+- docs/protocol.md documents `PAIR_RELAY` and `PAIR_TRANSIT_RELAY` for using your own servers (#2).
 
 ## 0.1.10 (2026-11-07)
 

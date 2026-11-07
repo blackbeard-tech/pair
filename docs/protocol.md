@@ -22,6 +22,10 @@ Like the magic-wormhole CLI, the relay's mailbox is used only to set up; the con
 If the other side is on protocol v1 (pair 0.1.8 or older), pairing stops and the user is told to ask them to
 update, rather than left waiting.
 
+**Your own servers:** set `PAIR_RELAY` (mailbox URL, default `ws://relay.magic-wormhole.io:4000/v1`) and
+`PAIR_TRANSIT_RELAY` (default `tcp://transit.magic-wormhole.io:4001`) in the environment Claude Code starts in.
+Both sides must use the same mailbox. Only `ws://` and `tcp://` work for now; `wss://` (TLS) is not supported yet.
+
 ## Messages
 
 | `t` | Sent by | Fields | Meaning |

@@ -90,7 +90,7 @@ type Out = Arc<Mutex<std::io::Stdout>>;
 
 enum Side {
     Initiator(Box<MailboxConnection<Value>>),
-    Joiner(Code),
+    Joiner(Box<MailboxConnection<Value>>),
 }
 
 fn emit(out: &Out, v: &Value) {
@@ -545,10 +545,13 @@ fn watch_line(e: &Value) -> String {
         .as_str()
         .map(|t| format!(" (trust: {t})"))
         .unwrap_or_default();
+    let from = match short_peer(m["peer"].as_str().unwrap_or("")) {
+        "" => String::new(), // e.g. a failed join: no peer yet
+        p => format!(" from {}", Value::from(p)),
+    };
     format!(
-        "pair {} from {}{trust}: {}",
+        "pair {}{from}{trust}: {}",
         m["kind"].as_str().unwrap_or("event"),
-        Value::from(short_peer(m["peer"].as_str().unwrap_or(""))),
         Value::from(content)
     )
 }
@@ -1064,7 +1067,7 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
             let me = me(a);
             let m = match async_io::block_on(MailboxConnection::create(cfg(&me), 2)) {
                 Ok(m) => m,
-                Err(e) => return result_text(format!("Could not reach the pairing relay: {e}"), true),
+                Err(e) => return result_text(format!("Could not reach the pairing relay: {}", chain(&e)), true),
             };
             let code = m.code().to_string();
             let notice = relay_notice(m.welcome());
@@ -1085,10 +1088,17 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
                     true,
                 );
             };
-            start(st, Side::Joiner(code), me(a), trust);
+            let me = me(a);
+            // Reach the relay before answering, as pair_start does, so a blocked relay is an error here.
+            let m = match async_io::block_on(MailboxConnection::connect(cfg(&me), code, false)) {
+                Ok(m) => m,
+                Err(e) => return result_text(format!("Could not reach the pairing relay: {}", chain(&e)), true),
+            };
+            let notice = relay_notice(m.welcome());
+            start(st, Side::Joiner(Box::new(m)), me, trust);
             result_text(
                 format!(
-                    "{BANNER}\nConnecting (trust: {trust}). You'll get an event when the other side approves or declines.\n{}",
+                    "{BANNER}\nConnecting (trust: {trust}). You'll get an event when the other side approves or declines.\n{}{notice}",
                     delivery_note()
                 ),
                 false,
@@ -1312,15 +1322,7 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
     let connect = async {
         let r: Result<Wormhole, magic_wormhole::WormholeError> = async {
             match side {
-                Side::Initiator(m) => Wormhole::connect(*m).await,
-                Side::Joiner(code) => {
-                    let m = MailboxConnection::connect(cfg(&me), code, false).await?;
-                    let notice = relay_notice(m.welcome());
-                    if !notice.is_empty() {
-                        push(json!({"kind": "relay_notice", "peer": ""}), notice.trim());
-                    }
-                    Wormhole::connect(m).await
-                }
+                Side::Initiator(m) | Side::Joiner(m) => Wormhole::connect(*m).await,
             }
         }
         .await;
@@ -1880,6 +1882,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn event_line_names_peer_only_when_there_is_one() {
+        let e = json!({"meta": {"kind": "unpaired", "peer": ""}, "content": "Pairing ended: x"});
+        assert_eq!(watch_line(&e), r#"pair unpaired: "Pairing ended: x""#);
+        let e = json!({"meta": {"kind": "message", "peer": "a@b · Ann"}, "content": "hi"});
+        assert_eq!(watch_line(&e), r#"pair message from "Ann": "hi""#);
+    }
+
+    #[test]
     fn never_declares_permission_relay() {
         // pair-630.2: a peer must never be able to approve local tool use.
         let src = include_str!("main.rs");
@@ -1932,4 +1942,18 @@ mod tests {
         assert!(!identity().is_empty());
         assert_eq!(clean_text("hi\u{202e}\u{7}\nthere"), "hi\nthere");
     }
+}
+
+/// An error with its causes, e.g. "Error with the rendezvous server connection: <why>".
+fn chain(e: &dyn std::error::Error) -> String {
+    let mut s = e.to_string();
+    let mut src = e.source();
+    while let Some(c) = src {
+        let t = c.to_string();
+        if !s.contains(&t) {
+            s += &format!(": {t}");
+        }
+        src = c.source();
+    }
+    s
 }
