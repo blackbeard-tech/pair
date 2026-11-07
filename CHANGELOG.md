@@ -13,6 +13,11 @@ separately; each early entry names the plugin versions that used that binary.
 - **Clear message where pair can't run.** In chat, claude.ai and cloud sessions the plugin's local server never
   starts; the `/pair:pair` skill now says so instead of trying workarounds.
 - Threat model: peer-chosen connection addresses (T13) and the third-party STUN server the Rust library uses (T14).
+- **Release pages explain themselves:** what's new, how to install, which file is for which computer, signing
+  status and how to verify. Files have readable names (`pair-macos-arm64`, `pair-windows-x64.exe`, ...).
+- Each release now includes the licences of the open-source parts inside pair (`THIRD_PARTY_LICENSES.md`) and a
+  build provenance attestation for every binary.
+- Windows builds are made natively on Windows, removing a step that made releases fail intermittently.
 
 ## 0.1.9 (2026-11-06)
 

@@ -1,0 +1,19 @@
+# Third-party licences
+
+The pair binaries include the open-source components below. Each is listed with the licence it is used under
+and that licence's full text. pair itself is Apache-2.0 (see LICENSE and NOTICE).
+
+{{#each overview}}
+- {{{name}}} ({{count}} crates)
+{{/each}}
+
+{{#each licenses}}
+## {{{name}}}
+
+Used by: {{#each used_by}}{{crate.name}} {{crate.version}}{{#unless @last}}, {{/unless}}{{/each}}
+
+```
+{{{text}}}
+```
+
+{{/each}}

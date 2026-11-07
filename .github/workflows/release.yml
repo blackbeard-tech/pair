@@ -154,13 +154,32 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { name: "linux-${{ matrix.target }}", path: "pair-*", if-no-files-found: error }
 
+  # Licence notices for every third-party crate in the binaries (MIT/BSD/Apache require shipping them).
+  notices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { contents: read }
+    defaults:
+      run: { working-directory: server }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - env: { V: 0.9.3, SHA: 3ad1e94ea1e63d69d1961f4fb15ccbbe9575d906111f96d2cb4dce6df48f71b4 }
+        run: |
+          curl -fsSLo /tmp/about.tgz "https://github.com/EmbarkStudios/cargo-about/releases/download/${V}/cargo-about-${V}-x86_64-unknown-linux-musl.tar.gz"
+          echo "${SHA}  /tmp/about.tgz" | sha256sum -c -
+          tar xzf /tmp/about.tgz -C /tmp --strip-components=1
+          /tmp/cargo-about generate --locked about.hbs -o ../THIRD_PARTY_LICENSES.md
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: notices, path: THIRD_PARTY_LICENSES.md, if-no-files-found: error }
+
   # Runs as soon as builds and signing are done (or signing failed): never waits for notarization.
   publish:
-    needs: [macos-build, macos-sign, windows, linux]
-    if: ${{ !cancelled() && needs.macos-build.result == 'success' && needs.windows.result == 'success' && needs.linux.result == 'success' }}
+    needs: [macos-build, macos-sign, windows, linux, notices]
+    if: ${{ !cancelled() && needs.macos-build.result == 'success' && needs.windows.result == 'success' && needs.linux.result == 'success' && needs.notices.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions: { contents: write }
+    permissions: { contents: write, id-token: write, attestations: write }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
@@ -174,9 +193,14 @@ jobs:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with: { pattern: "linux-*", path: dist, merge-multiple: true }
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with: { name: notices, path: dist }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with: { name: "${{ needs.macos-sign.result == 'success' && 'macos-signed' || 'macos-unsigned' }}", path: dist }
       - working-directory: dist
         run: sha256sum pair-* | tee checksums.txt
+      # Signed statement that these files were built by this workflow from this tag (gh attestation verify).
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with: { subject-path: "dist/pair-*" }
       - name: release notes (CHANGELOG section + .github/release-notes.md)
         env:
           TAG: ${{ github.ref_name }}
@@ -206,7 +230,7 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           pre=""; case "$TAG" in *-*) pre=--prerelease ;; esac  # e.g. v0.1.7-rc.1: test builds, never pinned
-          gh release create "$TAG" pair-* checksums.txt $pre --repo "$REPO" --title "pair $TAG" --notes-file "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" pair-* checksums.txt THIRD_PARTY_LICENSES.md $pre --repo "$REPO" --title "pair $TAG" --notes-file "$RUNNER_TEMP/notes.md"
 
   # Records how notarization ended. The published files are unchanged either way.
   notes:
