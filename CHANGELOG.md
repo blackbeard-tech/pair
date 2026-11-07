@@ -25,6 +25,8 @@ separately; each early entry names the plugin versions that used that binary.
 - Each release now includes the licences of the open-source parts inside pair (`THIRD_PARTY_LICENSES.md`) and a
   build provenance attestation for every binary.
 - Windows builds are made natively on Windows, removing a step that made releases fail intermittently.
+- Docs checked against the code throughout; the plugin now has its own README listing everything it runs and
+  connects to.
 
 ## 0.1.9 (2026-11-06)
 
