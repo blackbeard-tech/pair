@@ -185,10 +185,11 @@ if os.name != "nt":
     assert os.stat(os.path.join(sdir, "inbox.jsonl")).st_mode & 0o777 == 0o600
 g.tool("unpair")
 h.event("unpaired")
+w.kill()  # first: its 10 s heartbeat recreates the session dir (with only watch.alive in it)
+w.wait(10)
 g.p.stdin.close()
 g.p.wait(10)
 assert not os.path.exists(sdir), "session dir not removed at session end"
-w.kill()
 
 # No monitor (desktop app / IDE hosts): pair_start says so and hands Claude a `pair wait` command that
 # exits with the next event(s); nothing sent while no wait is running is lost.
