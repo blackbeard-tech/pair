@@ -11,6 +11,7 @@ separately; each early entry names the plugin versions that used that binary.
 - The plugin no longer declares a Claude Code channel. Messages arrive through the plugin's monitor or hooks
   (or `pair wait`, or `check_messages`) as before; `--dangerously-load-development-channels` was never needed
   and now has no effect on pair.
+- Shorter banner: "pair · By Blackbeard Technologies · https://blackbeard.tech".
 
 ## 0.1.10 (2026-11-07)
 

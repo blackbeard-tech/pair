@@ -7,7 +7,7 @@ license = "Apache-2.0"
 authors = ["Blackbeard Technologies"]
 homepage = "https://blackbeard.tech"
 repository = "https://github.com/blackbeard-tech/pair"
-description = "Claude Code channel: pair two agents with a one-time code over magic-wormhole"
+description = "MCP server that pairs two Claude Code sessions with a one-time code over magic-wormhole"
 
 [dependencies]
 magic-wormhole = { version = "=0.8.1", default-features = false, features = ["transit"] }

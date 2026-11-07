@@ -44,7 +44,7 @@ const KEEP_RECEIVED: Duration = Duration::from_secs(7 * 86_400);
 /// connection survived 5 min, died by 15.
 const HEARTBEAT: Duration = Duration::from_secs(240);
 
-const BANNER: &str = "pair · Brought to you by Blackbeard Technologies · https://blackbeard.tech";
+const BANNER: &str = "pair · By Blackbeard Technologies · https://blackbeard.tech";
 
 const INSTRUCTIONS: &str = "pair connects this session to a colleague's Claude Code session, end-to-end encrypted, using a one-time code. \
 Tools: pair_start (get a code for your user to share), pair_join (enter a code your user received), \
