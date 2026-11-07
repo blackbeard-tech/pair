@@ -37,6 +37,14 @@ bd close <id>         # Complete work
 - Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
 - Run `bd prime` for detailed command reference and session close protocol
 - Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+- **Labelling a bead as the owner's is not progress on it.** Sort open beads three ways:
+  - **Needs the owner:** only they can act, e.g. paying, signing in, giving a go, a human sign-off.
+  - **Involves the owner:** you do the work; they supply one piece, such as a decision, an asset or a check on their screen.
+  - **Needs nothing from the owner.**
+
+  Do every bead that needs nothing from the owner. For one that involves them, finish your part first, then ask for
+  the one specific thing still needed. Only beads in the first group go back to the owner, each with the exact step
+  for them to take.
 
 **Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/core-concepts/sync-concepts.md for details and anti-patterns.
 
