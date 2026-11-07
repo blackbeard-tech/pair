@@ -685,9 +685,22 @@ const READ_ONLY_TOOLS: &[&str] = &[
     "TaskList",
     "TaskGet",
     "AskUserQuestion",
-    "Skill",
-    "Agent",
+    "Agent", // plugin hooks also run inside subagents, so their tool calls are checked too
 ];
+// Not Skill: loading a skill runs its `!` shell lines and registers its hooks, which no PreToolUse sees.
+// Only pair's own skill is exempt.
+
+/// While paired: does this tool call need the user's OK at this trust level?
+fn needs_ok(trust: &str, tool: &str, tool_input: &Value) -> bool {
+    match trust {
+        "ask" => true,
+        "read-only" => {
+            let own_skill = tool == "Skill" && tool_input["skill"].as_str().is_some_and(|s| s.starts_with("pair:"));
+            !READ_ONLY_TOOLS.contains(&tool) && !own_skill
+        }
+        _ => false,
+    }
+}
 
 /// `pair hook pretool <data>`: PreToolUse for every tool. Makes Claude Code itself ask the user (its own
 /// permission prompt, in every app and even in auto mode) before:
@@ -745,19 +758,10 @@ fn hook_pretool(data: &str) {
             state["peer"].as_str().unwrap_or("the person who entered your code")
         )),
         Some(_) => {}
-        None if state["phase"] == "paired" => {
-            let needs_ok = match trust {
-                "ask" => true,
-                "read-only" => !READ_ONLY_TOOLS.contains(&tool),
-                _ => false,
-            };
-            if needs_ok {
-                ask(format!(
-                    "pair: you're paired with {peer} at trust \"{trust}\", so {tool} needs your OK while paired \
-                     (whoever asked for it). Pair with trust \"normal\" to skip this, or unpair."
-                ));
-            }
-        }
+        None if state["phase"] == "paired" && needs_ok(trust, tool, &input["tool_input"]) => ask(format!(
+            "pair: you're paired with {peer} at trust \"{trust}\", so {tool} needs your OK while paired \
+             (whoever asked for it). Pair with trust \"normal\" to skip this, or unpair."
+        )),
         None => {}
     }
 }
@@ -1880,6 +1884,17 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn read_only_asks_before_other_skills() {
+        let skill = |s: &str| json!({ "skill": s });
+        assert!(needs_ok("read-only", "Skill", &skill("other:deploy")));
+        assert!(!needs_ok("read-only", "Skill", &skill("pair:pair")));
+        assert!(!needs_ok("read-only", "Read", &Value::Null));
+        assert!(needs_ok("read-only", "Bash", &Value::Null));
+        assert!(needs_ok("ask", "Read", &Value::Null));
+        assert!(!needs_ok("normal", "Bash", &Value::Null));
+    }
 
     #[test]
     fn event_line_names_peer_only_when_there_is_one() {
