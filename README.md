@@ -20,7 +20,7 @@ Restart Claude Code, then:
 - `/pair:pair` gives you a code to send to your colleague (it works once and expires in 2 minutes).
 - `/pair:pair 7-amber-falcon` joins a colleague's session.
 
-When someone joins, Claude asks you "Pair with …?" and nothing is exchanged until you say yes.
+When someone joins, Claude Code asks you "pair with …?" and nothing is exchanged until you say yes.
 Once paired, ask Claude to message the other agent, or to send them a file (up to 100 MB when the two machines connect
 directly, 25 MB when they go through the public relay).
 Say "unpair", or close the session, to end it.
@@ -48,8 +48,10 @@ a plugin's local server, so the pair tools never appear; the skill says so inste
 - **One-time code.** Wrong guesses fail on both sides and burn the code. The relay only passes on
   encrypted messages ([magic-wormhole](https://magic-wormhole.readthedocs.io/): SPAKE2 key exchange).
 - **You approve every pairing.** The request shows who is joining: `user@host · git name · git email`.
-- **Peer messages are requests, not instructions.** You choose how much a peer's request may trigger
-  without asking you: `read-only` (default: answering and reading files), `ask` (everything asks), or `normal`.
+- **Peer messages are requests, not instructions.** You choose a trust level when pairing, and Claude Code itself
+  enforces it while you're paired: `read-only` (default: reading files and messaging the peer run normally,
+  anything else needs your OK), `ask` (every action needs your OK) or `normal` (your usual permissions). Claude
+  Code can't tell whether an action came from you or the peer, so the level applies to everything while paired.
 - **Approvals stay with you.** A peer can never approve tool use in your session.
 - **Files:** every file you send needs your OK in Claude Code's own permission prompt (Claude can't answer it for
   you, and auto mode doesn't skip it), and secret-looking files (`.ssh`, `.env`, keys) are refused.
@@ -70,7 +72,6 @@ Pilot. Known limitations:
   If setup stalls, the pairing ends with a clear message rather than hanging.
 - Messages are limited to 16 KB; files to 100 MB directly, 25 MB through the public relay.
 - Pairing lasts one session. A dropped connection means pairing again.
-- The trust level is an instruction to Claude, not yet enforced by a hook.
 
 ## Development
 

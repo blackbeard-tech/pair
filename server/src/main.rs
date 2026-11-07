@@ -142,6 +142,29 @@ fn listening(dir: &Path) -> bool {
     monitor_alive(dir) || hooks_active() || fresh(&dir.join("wait.alive"))
 }
 
+/// Phase, peer and trust for the plugin's PreToolUse hook (`pair hook pretool`): <session dir>/pair.json,
+/// removed when nothing is pending or paired.
+fn write_pair_state(st: &St) {
+    let Some(dir) = SESSION_DIR.get().and_then(|d| d.as_deref()) else {
+        return;
+    };
+    let (phase, peer, trust) = {
+        let s = st.lock().unwrap();
+        (s.phase, s.peer.clone(), s.trust)
+    };
+    let path = dir.join("pair.json");
+    let phase = match phase {
+        Phase::Pending => "pending",
+        Phase::Paired => "paired",
+        _ => {
+            let _ = std::fs::remove_file(path);
+            return;
+        }
+    };
+    let _ = std::fs::create_dir_all(dir)
+        .and_then(|_| std::fs::write(path, json!({"phase": phase, "peer": peer, "trust": trust}).to_string()));
+}
+
 /// Whether the plugin's FileChanged hook delivers this session's inbox, found by a one-off probe.
 static HOOKS_OK: OnceLock<bool> = OnceLock::new();
 
@@ -655,39 +678,95 @@ fn hook_session_start(data: &str) {
     );
 }
 
-/// `pair hook confirm-send <data>`: PreToolUse on send_file. Makes Claude Code ask the user, in every app and
-/// every permission mode that can ask; refuses in modes that never ask. Leaves a marker so the server knows.
-fn hook_confirm_send(data: &str) {
+/// Tools that only read, or only talk to the peer, never need extra confirmation at trust "read-only".
+const READ_ONLY_TOOLS: &[&str] = &[
+    "Read",
+    "Grep",
+    "Glob",
+    "LS",
+    "NotebookRead",
+    "ToolSearch",
+    "TodoWrite",
+    "TaskCreate",
+    "TaskUpdate",
+    "TaskList",
+    "TaskGet",
+    "AskUserQuestion",
+    "Skill",
+    "Agent",
+];
+
+/// `pair hook pretool <data>`: PreToolUse for every tool. Makes Claude Code itself ask the user (its own
+/// permission prompt, in every app and even in auto mode) before:
+/// - send_file (each file) and pair_accept (the pairing itself), always;
+/// - while paired: any tool at trust "ask", any tool that isn't read-only at trust "read-only".
+///
+/// A hook can't tell whether a call was prompted by the peer or by the user, so while paired the trust level
+/// applies to the whole session. Modes that never ask (bypass, dontAsk) get a refusal with the reason.
+fn hook_pretool(data: &str) {
     let input = hook_input();
-    if let Some(dir) = session_dir_for(data, input["session_id"].as_str().unwrap_or("")) {
-        let _ = std::fs::create_dir_all(&dir).and_then(|_| touch(&dir.join("confirm.hook")));
-    }
-    let path = input["tool_input"]["path"].as_str().unwrap_or("");
-    let name = Path::new(path)
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let kb = std::fs::metadata(path).map(|m| m.len().div_ceil(1024)).unwrap_or(0);
-    let mode = input["permission_mode"].as_str().unwrap_or("default");
-    let (decision, reason) = if matches!(mode, "bypassPermissions" | "dontAsk") {
-        (
-            "deny",
-            format!(
-                "pair: sending \"{name}\" needs your confirmation, and this permission mode never asks. Switch modes to send files."
-            ),
-        )
-    } else {
-        (
-            "ask",
-            format!(
-                "pair: send \"{name}\" ({kb} KB) to the person you're paired with? Only approve files you mean to share."
-            ),
-        )
+    let tool = input["tool_name"].as_str().unwrap_or("");
+    let Some(dir) = session_dir_for(data, input["session_id"].as_str().unwrap_or("")) else {
+        return;
     };
-    println!(
-        "{}",
-        json!({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": decision, "permissionDecisionReason": reason}})
+    let state: Value = std::fs::read_to_string(dir.join("pair.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or(Value::Null);
+    let peer = short_peer(state["peer"].as_str().unwrap_or("the other person")).to_string();
+    let trust = state["trust"].as_str().unwrap_or("read-only");
+    let never_asks = matches!(
+        input["permission_mode"].as_str().unwrap_or("default"),
+        "bypassPermissions" | "dontAsk"
     );
+    let ask = |reason: String| {
+        let (decision, reason) = if never_asks {
+            (
+                "deny",
+                format!("{reason} This permission mode never asks, so it was refused; switch modes to allow it."),
+            )
+        } else {
+            ("ask", reason)
+        };
+        println!(
+            "{}",
+            json!({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": decision, "permissionDecisionReason": reason}})
+        );
+    };
+    let pair_tool = tool.strip_prefix("mcp__plugin_pair_pair__");
+    match pair_tool {
+        Some("send_file") => {
+            let _ = std::fs::create_dir_all(&dir).and_then(|_| touch(&dir.join("confirm.hook")));
+            let path = input["tool_input"]["path"].as_str().unwrap_or("");
+            let name = Path::new(path)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let kb = std::fs::metadata(path).map(|m| m.len().div_ceil(1024)).unwrap_or(0);
+            ask(format!(
+                "pair: send \"{name}\" ({kb} KB) to {peer}? Only approve files you mean to share."
+            ));
+        }
+        Some("pair_accept") => ask(format!(
+            "pair: pair with {}? Their agent will be able to message yours (trust: {trust}).",
+            state["peer"].as_str().unwrap_or("the person who entered your code")
+        )),
+        Some(_) => {}
+        None if state["phase"] == "paired" => {
+            let needs_ok = match trust {
+                "ask" => true,
+                "read-only" => !READ_ONLY_TOOLS.contains(&tool),
+                _ => false,
+            };
+            if needs_ok {
+                ask(format!(
+                    "pair: you're paired with {peer} at trust \"{trust}\", so {tool} needs your OK while paired \
+                     (whoever asked for it). Pair with trust \"normal\" to skip this, or unpair."
+                ));
+            }
+        }
+        None => {}
+    }
 }
 
 /// `pair hook inbox <data>`: FileChanged on the inbox. Prints what's new on stderr and exits 2, which
@@ -998,11 +1077,12 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
                 Err(e) => return result_text(format!("Could not reach the pairing relay: {e}"), true),
             };
             let code = m.code().to_string();
+            let notice = relay_notice(m.welcome());
             start(st, out, Side::Initiator(Box::new(m)), me, trust);
             result_text(
                 format!(
                     "{BANNER}\nPairing code: {code}\nAsk your user to share it with their colleague, who enters it with /pair {code}. \
-                It works once and expires in 2 minutes. Trust level: {trust}. When they connect you will get a pair_request event; ask your user before calling pair_accept.\n{}",
+                It works once and expires in 2 minutes. Trust level: {trust}. When they connect you will get a pair_request event; ask your user before calling pair_accept.\n{}{notice}",
                     delivery_note()
                 ),
                 false,
@@ -1030,6 +1110,7 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
                 s.phase = Phase::Paired;
                 (s.me.clone(), s.peer.clone())
             };
+            write_pair_state(st);
             send(st, json!({"t": "accept", "v": PROTO, "name": me}));
             result_text(
                 format!("Paired with {peer}. Their messages will arrive by themselves; reply with send_to_peer."),
@@ -1134,6 +1215,7 @@ fn start(st: &St, out: &Out, side: Side, me: String, trust: &'static str) {
             s.tx = None;
             std::mem::take(&mut s.peer)
         };
+        write_pair_state(&st);
         event(&out, "unpaired", &peer, &format!("Pairing ended: {reason}"));
     });
 }
@@ -1158,6 +1240,17 @@ const FILE_STALL: Duration = Duration::from_secs(45);
 /// Protocol version in hello/accept. v2: after approval, traffic moves off the relay mailbox onto transit.
 const PROTO: u64 = 2;
 
+/// The relay operator's welcome message (their only way to tell clients something), shown to the user.
+fn relay_notice(welcome: Option<&str>) -> String {
+    match welcome.map(clean_text).filter(|w| !w.trim().is_empty()) {
+        Some(w) => format!(
+            "\nMessage from the relay operator (show it to your user): {}",
+            w.chars().take(500).collect::<String>()
+        ),
+        None => String::new(),
+    }
+}
+
 /// Transit relay used when the two machines can't reach each other directly.
 fn transit_relays() -> Vec<magic_wormhole::transit::RelayHint> {
     let url =
@@ -1180,7 +1273,7 @@ async fn open_transit(mut w: Wormhole, initiator: bool) -> Result<(magic_wormhol
         w.send_json(&json!({"t": "transit", "hints": **connector.our_hints()}))
             .await
             .map_err(|e| e.to_string())?;
-        let theirs: transit::Hints = loop {
+        let mut theirs: transit::Hints = loop {
             let m: Value = w
                 .receive_json()
                 .await
@@ -1192,6 +1285,8 @@ async fn open_transit(mut w: Wormhole, initiator: bool) -> Result<(magic_wormhol
                 _ => {}
             }
         };
+        // Use only our relays, never one the peer names (it could learn our address from it).
+        theirs.relay = transit_relays();
         let key = w
             .key()
             .derive_subkey_from_purpose::<transit::TransitKey>(&format!("{}/transit-key", w.appid()));
@@ -1221,7 +1316,14 @@ async fn session(st: &St, out: &Out, side: Side, me: String, rx: async_channel::
         let r: Result<Wormhole, magic_wormhole::WormholeError> = async {
             match side {
                 Side::Initiator(m) => Wormhole::connect(*m).await,
-                Side::Joiner(code) => Wormhole::connect(MailboxConnection::connect(cfg(&me), code, false).await?).await,
+                Side::Joiner(code) => {
+                    let m = MailboxConnection::connect(cfg(&me), code, false).await?;
+                    let notice = relay_notice(m.welcome());
+                    if !notice.is_empty() {
+                        push(out, json!({"kind": "relay_notice", "peer": ""}), notice.trim());
+                    }
+                    Wormhole::connect(m).await
+                }
             }
         }
         .await;
@@ -1292,14 +1394,22 @@ async fn session(st: &St, out: &Out, side: Side, me: String, rx: async_channel::
                             s.peer = peer.clone();
                             s.phase = Phase::Pending;
                         }
+                        write_pair_state(st);
                         event(
                             out,
                             "pair_request",
                             &peer,
-                            &format!(
-                                "Someone named \"{peer}\" entered your pairing code. Ask your user: \"Pair with {peer}?\" \
-                                 Call pair_accept only if they say yes; otherwise pair_reject."
-                            ),
+                            &if hooks_active() {
+                                format!(
+                                    "Someone named \"{peer}\" entered your pairing code. Tell your user, then call pair_accept: \
+                                     Claude Code itself asks them to confirm. If they decline that prompt, call pair_reject."
+                                )
+                            } else {
+                                format!(
+                                    "Someone named \"{peer}\" entered your pairing code. Ask your user: \"Pair with {peer}?\" \
+                                     Call pair_accept only if they say yes; otherwise pair_reject."
+                                )
+                            },
                         );
                     }
                     ("accept", false, Phase::Pending) => {
@@ -1335,6 +1445,7 @@ async fn session(st: &St, out: &Out, side: Side, me: String, rx: async_channel::
             s.phase = Phase::Paired;
             s.peer.clone()
         };
+        write_pair_state(st);
         event(
             out,
             "paired",
@@ -1499,7 +1610,7 @@ fn main() {
             match kind.as_str() {
                 "session-start" => hook_session_start(&data),
                 "inbox" => std::process::exit(hook_inbox(&data)),
-                "confirm-send" => hook_confirm_send(&data),
+                "pretool" | "confirm-send" => hook_pretool(&data),
                 _ => {}
             }
             return;

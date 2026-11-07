@@ -8,6 +8,13 @@ separately; each early entry names the plugin versions that used that binary.
 
 ## Unreleased
 
+- **The trust level is enforced.** While paired, Claude Code itself asks you before any action beyond reading
+  (trust `read-only`, the default) or before every action (trust `ask`), even in auto mode. It can't tell whether an
+  action came from you or the other person, so it applies to everything while paired; pair with trust `normal` to
+  keep your usual permissions.
+- **Accepting a pairing is confirmed by Claude Code itself** ("pair with …?"), like file sends.
+- Relays named by the other side are ignored; only our configured transit relay is used.
+- A message from the relay operator, if any, is shown to you when pairing.
 - **Bigger files.** Files stream instead of being held in memory: up to 100 MB when the two machines connect
   directly, 25 MB when they go through the public relay (was 5 MB).
 - **Clear message where pair can't run.** In chat, claude.ai and cloud sessions the plugin's local server never

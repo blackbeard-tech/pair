@@ -250,8 +250,24 @@ n.tool("pair_join", code=code_of(text), name="Ned")
 w = wakes.get(timeout=30)
 print("  hook wake ->", [x[:60] for x in w])
 assert w[0].startswith('pair pair_request from "Ned"'), w
+def pretool(tool, mode="default", tool_input=None):
+    r = subprocess.run([BIN, "hook", "pretool", hdata], capture_output=True, text=True, timeout=10,
+                       input=json.dumps({"session_id": hsid, "tool_name": tool, "permission_mode": mode,
+                                         "tool_input": tool_input or {}}))
+    return json.loads(r.stdout)["hookSpecificOutput"] if r.stdout.strip() else None
+d = pretool("mcp__plugin_pair_pair__pair_accept")
+assert d["permissionDecision"] == "ask" and "pair with Ned" in d["permissionDecisionReason"], d
+assert pretool("Bash") is None, "not paired yet: no trust enforcement"
 assert not m.tool("pair_accept")[1]
 n.event("paired")
+# Trust enforcement while paired (M paired at the default trust, read-only)
+assert pretool("Read") is None and pretool("Grep") is None
+assert pretool("mcp__plugin_pair_pair__send_to_peer") is None
+d = pretool("Bash")
+assert d["permissionDecision"] == "ask" and 'trust "read-only"' in d["permissionDecisionReason"], d
+assert pretool("Edit", mode="bypassPermissions")["permissionDecision"] == "deny"
+d = pretool("mcp__plugin_pair_pair__send_file", tool_input={"path": __file__})
+assert d["permissionDecision"] == "ask" and "send" in d["permissionDecisionReason"], d
 n.tool("send_to_peer", text="one")
 assert wakes.get(timeout=30) == ['pair message from "Ned" (trust: read-only): "one"']
 sdir = os.path.dirname(watched)
@@ -265,5 +281,7 @@ assert wakes.get(timeout=30) == ['pair message from "Ned" (trust: read-only): "t
 assert fire(os.path.join(tempfile.mkdtemp(), "inbox.jsonl"))[0] == 0  # a project-folder inbox.jsonl is ignored
 m.tool("unpair")
 n.event("unpaired")
+time.sleep(1)
+assert pretool("Bash") is None, "after unpairing the trust level no longer applies"
 
 print("PASS")
