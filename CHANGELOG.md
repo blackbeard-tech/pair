@@ -6,7 +6,7 @@ What changed in each release of pair, newest first. Install or update in Claude 
 From 0.1.6 the plugin and its binary always share one version number. Before that they were numbered
 separately; each early entry names the plugin versions that used that binary.
 
-## Unreleased
+## 0.1.12 (2026-11-08)
 
 - Being paired no longer asks you to approve your own work. The plugin's `PreToolUse` hook is gone: the trust level
   (`read-only`, `ask`, `normal`) now tells Claude how far to go on the peer's requests, and everything else follows
