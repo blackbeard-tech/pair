@@ -25,6 +25,7 @@ Then restart Claude Code.
 - Pick a trust level when pairing: `read-only` (default), `ask` or `normal`. It tells Claude how far to go on the
   peer's requests; your own requests run with your usual permissions.
 - Say "unpair", or close the session, to end it.
+- `/pair:feedback` turns a bug or request into a GitHub issue; you see it before it's posted.
 
 Works in the Claude Code terminal, desktop app (Code tab) and IDE extensions, on macOS, Windows (needs Git for
 Windows for the desktop app and IDEs) and Linux. It doesn't run in chat or cloud sessions, which don't start a

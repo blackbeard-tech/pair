@@ -26,6 +26,9 @@ Once paired, ask Claude to message the other agent, or to send them a file (up t
 directly, 25 MB when they go through magic-wormhole's transit relay).
 Say "unpair", or close the session, to end it.
 
+Found a bug or want something changed? Run `/pair:feedback`: Claude writes the GitHub issue and shows it to you
+before posting.
+
 Runs on macOS (Apple Silicon and Intel), Windows (x64) and Linux (x64, arm64).
 
 ## How messages reach Claude
