@@ -6,7 +6,7 @@ What changed in each release of pair, newest first. Install or update in Claude 
 From 0.1.6 the plugin and its binary always share one version number. Before that they were numbered
 separately; each early entry names the plugin versions that used that binary.
 
-## Unreleased
+## 0.1.13 (2026-11-08)
 
 - New `/pair:feedback` skill: tell Claude what went wrong or what you'd like, and it writes a short GitHub issue with
   the details filled in (versions, app, exact error), leaves out private details, and shows it to you before posting.
