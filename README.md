@@ -20,7 +20,7 @@ Restart Claude Code, then:
 - `/pair:pair` gives you a code to send to your colleague (it works once and expires in 2 minutes).
 - `/pair:pair 7-amber-falcon` joins a colleague's session.
 
-When someone joins, Claude Code asks you to approve the pairing in its own permission prompt (in every mode, also on
+When someone joins, Claude Code asks you to approve the pairing in its own confirmation dialog (in every mode, also on
 your phone), and nothing is exchanged until you say yes.
 Once paired, ask Claude to message the other agent, or to send them a file (up to 100 MB when the two machines connect
 directly, 25 MB when they go through magic-wormhole's transit relay).
@@ -33,7 +33,7 @@ Runs on macOS (Apple Silicon and Intel), Windows (x64) and Linux (x64, arm64).
 | Where you run Claude Code | Delivery |
 |---|---|
 | Terminal (`claude`) | Live, through the plugin's monitor. |
-| Claude desktop app (Code tab), VS Code and other IDE extensions | Live, through the plugin's hooks: Claude Code watches the session's inbox and wakes Claude when something arrives. On Windows this needs Git for Windows (Git Bash). |
+| Claude desktop app (Code tab), VS Code and other IDE extensions | Live, through the plugin's hooks: Claude Code watches the session's inbox and wakes Claude when something arrives. |
 | Plugin installed after the session started | Restart Claude Code. Until then Claude runs a background listener (`pair wait`) instead. |
 | Non-interactive (`claude -p`, Agent SDK scripts) | Claude polls with the `check_messages` tool. |
 
@@ -72,13 +72,13 @@ traffic and can't read messages or files.
 - **One-time code.** Wrong guesses fail on both sides and burn the code. The relay only sets up the
   pairing, and everything is end-to-end encrypted ([magic-wormhole](https://magic-wormhole.readthedocs.io/): SPAKE2 key exchange).
 - **You approve every pairing.** The request shows who is joining: `user@host · git name · git email`.
-- **Peer messages are requests, not instructions.** You choose a trust level when pairing, and Claude Code itself
-  enforces it while you're paired: `read-only` (default: reading files and messaging the peer run normally,
-  anything else needs your OK), `ask` (every action needs your OK) or `normal` (your usual permissions). Claude
-  Code can't tell whether an action came from you or the peer, so the level applies to everything while paired. On Windows this needs Git for
-  Windows (Git Bash), like live delivery in the desktop app.
+- **Peer messages are requests, not instructions.** Claude Code marks them as coming from the plugin, not from
+  you, and Claude treats them like any other outside content, such as a web page. You choose a trust level when
+  pairing that tells Claude how far to go on a peer's request: `read-only` (default: answer and read files, ask you
+  before anything else), `ask` (ask you before any action a peer asks for) or `normal` (Claude's usual judgement).
+  Your own requests run with your usual permissions.
 - **Approvals stay with you.** A peer can never approve tool use in your session.
-- **Files:** every file you send needs your OK in Claude Code's own permission prompt (Claude can't answer it for
+- **Files:** every file you send needs your OK in Claude Code's own confirmation dialog (Claude can't answer it for
   you, and auto mode doesn't skip it), and secret-looking files (`.ssh`, `.env`, keys) are refused.
   Received files land in a quarantine folder, are checked against their hash, and are deleted after 7 days.
 - **What the relays see:** the public relay only sets the pairing up; messages then travel directly between the two
@@ -96,9 +96,8 @@ traffic and can't read messages or files.
   `stun.piegames.de:3478` for this machine's public address when trying a direct connection.
 - **Sent to the other side:** your messages and the files you approve, plus the name you appear as
   (`user@host · git name · git email` unless you set another).
-- **On your machine:** the plugin's data folder (inbox, received files, the session's pairing state). Its hooks
-  read that folder; while you're paired the `PreToolUse` hook adds permission prompts as described above. It
-  never changes your settings.
+- **On your machine:** the plugin's data folder (inbox and received files). Its hooks only deliver messages from
+  that folder. It never changes your settings.
 - Nothing else: no analytics, no other servers.
 
 Details and known limitations are in the [threat model](docs/threat-model.md). Report security issues

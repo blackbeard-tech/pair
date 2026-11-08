@@ -268,25 +268,11 @@ n.tool("pair_join", code=code_of(text), name="Ned")
 w = wakes.get(timeout=30)
 print("  hook wake ->", [x[:60] for x in w])
 assert w[0].startswith('pair pair_request from "Ned"'), w
-def pretool(tool, mode="default", tool_input=None):
-    r = subprocess.run([BIN, "hook", "pretool", hdata], capture_output=True, text=True, timeout=10,
-                       input=json.dumps({"session_id": hsid, "tool_name": tool, "permission_mode": mode,
-                                         "tool_input": tool_input or {}}))
-    return json.loads(r.stdout)["hookSpecificOutput"] if r.stdout.strip() else None
-# pair_accept and send_file prompt through their requiresUserInteraction flag, not the hook.
+# pair_accept and send_file are confirmed through their requiresUserInteraction flag.
 flagged = {t["name"] for t in m.rpc("tools/list")["tools"] if t.get("_meta", {}).get("anthropic/requiresUserInteraction") is True}
 assert flagged == {"pair_accept", "send_file"}, flagged
-assert pretool("mcp__plugin_pair_pair__pair_accept") is None
-assert pretool("Bash") is None, "not paired yet: no trust enforcement"
 assert not m.tool("pair_accept")[1]
 n.event("paired")
-# Trust enforcement while paired (M paired at the default trust, read-only)
-assert pretool("Read") is None and pretool("Grep") is None
-assert pretool("mcp__plugin_pair_pair__send_to_peer") is None
-d = pretool("Bash")
-assert d["permissionDecision"] == "ask" and 'trust "read-only"' in d["permissionDecisionReason"], d
-assert pretool("Edit", mode="bypassPermissions")["permissionDecision"] == "deny"
-assert pretool("mcp__plugin_pair_pair__send_file", tool_input={"path": __file__}) is None
 n.tool("send_to_peer", text="one")
 assert wakes.get(timeout=30) == ['pair message from "Ned" (trust: read-only): "one"']
 sdir = os.path.dirname(watched)
@@ -301,7 +287,6 @@ assert fire(os.path.join(tempfile.mkdtemp(), "inbox.jsonl"))[0] == 0  # a projec
 m.tool("unpair")
 n.event("unpaired")
 time.sleep(1)
-assert pretool("Bash") is None, "after unpairing the trust level no longer applies"
 
 # Resume: a stalled connection reconnects by itself on a code both sides derive, with no new approval.
 # A frozen process (SIGSTOP) stands in for a laptop asleep or off the network. PAIR_TEST_FAST shortens the timers.

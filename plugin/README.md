@@ -22,8 +22,8 @@ Then restart Claude Code.
 
 - `/pair:pair` gives you a code to share (it works once and expires in 2 minutes).
 - `/pair:pair <code>` joins a colleague's session. The other side approves before anything is exchanged.
-- Pick a trust level when pairing: `read-only` (default), `ask` or `normal`. While paired, Claude Code itself asks
-  you before actions the level doesn't allow.
+- Pick a trust level when pairing: `read-only` (default), `ask` or `normal`. It tells Claude how far to go on the
+  peer's requests; your own requests run with your usual permissions.
 - Say "unpair", or close the session, to end it.
 
 Works in the Claude Code terminal, desktop app (Code tab) and IDE extensions, on macOS, Windows (needs Git for
@@ -42,9 +42,9 @@ plugin's local server.
   machine's public address when trying a direct connection.
 - **Sent to the other side:** your messages, files you approve, and the name you appear as
   (`user@host · git name · git email` unless you set another).
-- **On your machine:** the plugin data folder (inbox, received files, pairing state). Hooks: `SessionStart` and
-  `FileChanged` deliver messages; `PreToolUse` adds permission prompts while paired and before accepting a pairing
-  or sending a file. It never changes your settings. No analytics, no other servers.
+- **On your machine:** the plugin data folder (inbox and received files). Hooks: `SessionStart` and
+  `FileChanged` deliver messages. Accepting a pairing and sending a file are confirmed in Claude Code's own
+  dialog. It never changes your settings. No analytics, no other servers.
 
 ## License
 

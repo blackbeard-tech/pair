@@ -1,7 +1,7 @@
 [
   {
     "name": "pair",
-    "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/pair\" watch \"${CLAUDE_PLUGIN_DATA}\"",
+    "command": "cd \"${CLAUDE_PLUGIN_ROOT}/scripts\"; ./pair watch \"${CLAUDE_PLUGIN_DATA}\"; exit $LASTEXITCODE",
     "description": "Live pairing events (requests, peer messages, unpairs)"
   }
 ]

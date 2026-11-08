@@ -53,7 +53,7 @@
       "name": "pair_join"
     },
     {
-      "description": "Accept a pending pair_request, following the pair_request event's instructions: either Claude Code's own prompt confirms it, or you ask your user first.",
+      "description": "Accept a pending pair_request, following the pair_request event's instructions: either Claude Code's own confirmation dialog confirms it, or you ask your user first.",
       "inputSchema": {
         "properties": {},
         "type": "object"

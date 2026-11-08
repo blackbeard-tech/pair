@@ -65,8 +65,9 @@ the drop can be lost.
 
 ## Sending files
 
-Before sending, the sender's owner confirms each file in Claude Code's own permission prompt (the plugin's
-`PreToolUse` hook). If the hook didn't run, the server asks through an MCP elicitation dialog instead.
+Before sending, the sender's owner confirms each file in Claude Code's own confirmation dialog (`send_file` is
+marked `anthropic/requiresUserInteraction`). In clients that ignore that flag, the server asks through an MCP
+elicitation dialog instead.
 Secret-looking paths are refused regardless.
 
 ## Receiving files

@@ -24,7 +24,6 @@ In the plugin's data folder:
 - The session's inbox of pairing events and messages. Deleted when the Claude Code session ends; anything left by
   a crash is removed after a day.
 - Files your colleague sent you. Deleted after 7 days.
-- The session's pairing state (who you're paired with and at what trust level). Deleted when the session ends.
 
 Nothing is kept after you unpair or close the session, and pairings aren't remembered.
 

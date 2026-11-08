@@ -6,6 +6,15 @@ What changed in each release of pair, newest first. Install or update in Claude 
 From 0.1.6 the plugin and its binary always share one version number. Before that they were numbered
 separately; each early entry names the plugin versions that used that binary.
 
+## Unreleased
+
+- Being paired no longer asks you to approve your own work. The plugin's `PreToolUse` hook is gone: the trust level
+  (`read-only`, `ask`, `normal`) now tells Claude how far to go on the peer's requests, and everything else follows
+  your usual permission mode. Claude Code already marks peer messages as not coming from you. Accepting a pairing and
+  sending a file still need your yes in Claude Code's own dialog. (GitHub #5)
+- Windows without Git for Windows: the plugin's hooks and monitor now run in PowerShell. Before, their command
+  didn't parse there, so live delivery in the desktop app and VS Code didn't work.
+
 ## 0.1.11 (2026-11-07)
 
 - The plugin no longer declares a Claude Code channel. Messages arrive through the plugin's monitor or hooks

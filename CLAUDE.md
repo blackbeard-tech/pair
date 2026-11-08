@@ -106,12 +106,12 @@ then `twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1`): use it to te
   (SPAKE2) is used only for setup: hello/accept and transit hints, then closed, as the wormhole CLI does. Traffic
   runs over transit (direct TCP or `transit.magic-wormhole.io:4001`) with a split reader/writer. See docs/protocol.md. Hand-rolled JSON-RPC. Tools: pair_start/join/accept/reject, send_to_peer,
   send_file, unpair, check_messages. Other modes: `pair watch <data>` (plugin monitor), `pair wait <session dir>`
-  (fallback listener), `pair hook session-start|inbox|pretool` (plugin hooks).
+  (fallback listener), `pair hook session-start|inbox` (plugin hooks).
 - Delivery: events go to `<plugin data>/sessions/<CLAUDE_CODE_SESSION_ID>/inbox.jsonl`, printed live by the
   monitor (terminal), the FileChanged hook (desktop app, IDEs) or `pair wait`; everything is also queued for
   `check_messages` (for `claude -p`). No Claude Code channel (removed in 0.1.11).
-- `plugin/`: manifest, `/pair:pair` skill, monitor, hooks (SessionStart + FileChanged for delivery, PreToolUse to
-  enforce the trust level and confirm pair_accept/send_file; state in `<session dir>/pair.json`), launchers (`scripts/pair` bash for macOS/Git Bash,
+- `plugin/`: manifest, `/pair:pair` skill, monitor, hooks (SessionStart + FileChanged for delivery; no PreToolUse since 0.1.12:
+  trust levels are guidance to Claude, and pair_accept/send_file are confirmed by `requiresUserInteraction`), launchers (`scripts/pair` bash for macOS/Git Bash,
   `pair.cmd` + `fetch.ps1` for Windows). Launchers download the release binary named in the
   `# release vX` header of `plugin/checksums.txt` and refuse it unless its sha256 matches.
 - Docs: `docs/threat-model.md` (keep it current when behaviour changes).
@@ -141,8 +141,9 @@ then `twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1`): use it to te
 - Before a release, check delivery in each host on macOS and Windows: terminal `claude` (plugin monitor),
   Claude desktop app Code tab and VS Code (plugin hooks: SessionStart watchPaths + FileChanged asyncRewake),
   a session where the plugin was installed mid-session (`pair wait` fallback), and `claude -p` (check_messages).
-  Plugin monitors only start in the terminal CLI. Hook commands must be shell form: on Windows, exec form can't
-  start our `.cmd` launcher (hooks then need Git Bash; without it the self-test reports "NOT set up").
+  Plugin monitors only start in the terminal CLI. Hook and monitor commands are `cd "${CLAUDE_PLUGIN_ROOT}/scripts"; ./pair …; exit $LASTEXITCODE`: one
+  string that sh, Git Bash and PowerShell all run (PowerShell, which Claude Code uses on Windows without Git Bash,
+  resolves `./pair` to `pair.cmd`; `exit $LASTEXITCODE` keeps exit code 2). Exec form can't start a `.cmd`.
 - CI minutes matter: Rust CI is Linux-only and path-filtered; macOS/Windows only via manual dispatch or releases.
 - All GitHub Actions pinned by commit SHA; Dependabot has a 7-day cooldown.
 - Track work in beads (`bd`), not markdown TODOs.
