@@ -109,6 +109,11 @@ assert "No new events" in a.tool("check_messages")[0]
 assert not a.tool("send_to_peer", text="hi bob")[1]
 msg = b.event("message")
 assert msg["content"] == "hi bob" and msg["meta"]["trust"] == "ask", msg
+# The pair pane (mod) sends chat by appending to the session's outbox (pair-cvl.7)
+with open(os.path.join(os.path.dirname(a.inbox), "outbox.jsonl"), "a") as f:
+    f.write(json.dumps({"text": "from the pane"}) + "\n")
+msg = b.event("message")
+assert msg["content"] == "from the pane", msg
 # Files: B sends to A; A saves to its quarantine dir; B hears it was delivered.
 import os, tempfile
 tmp = tempfile.mkdtemp()
@@ -181,6 +186,9 @@ assert not err and text == "Unpaired.", text
 assert "you unpaired" in w.event("unpaired")["content"]
 inbox = w.tool("check_messages")[0]
 assert "[unpaired]:" in inbox and "from :" not in inbox, inbox  # no peer yet: no "from" (GitHub #8)
+with open(os.path.join(os.path.dirname(w.inbox), "outbox.jsonl"), "a") as f:
+    f.write(json.dumps({"text": "nobody to send to"}) + "\n")
+assert "not paired" in w.event("outbox_failed")["content"]
 assert not w.tool("pair_start")[1], "pair_start right after unpair must work"
 w.tool("unpair")
 

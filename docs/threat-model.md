@@ -60,6 +60,8 @@ other agent tools (P3) and remembered peers are out of scope.
 | T13 | **Peer-chosen connection addresses.** A peer's transit hints decide which addresses our side connects to, including addresses inside your network. | Relays the peer names are ignored (only our configured transit relay is used). Direct connections carry only the transit handshake, which fails unless the other end knows the pairing key, so no data goes to a wrong address. | A peer could make your machine attempt TCP connections to LAN addresses (a probe, not data exposure). Filtering private-range hints from peers, or a relay-only mode, is tracked as `pair-630.9`. |
 | T14 | **Third-party STUN lookup.** For direct connections, magic-wormhole.rs 0.8.1 asks a STUN server for your public address: `stun.piegames.de:3478`, hard-coded, run by one of its maintainers. | Only your IP address and timing are exposed, never content. | Not configurable in the library today; tracked as `pair-630.10`. |
 
+| T15 | **Outbox file.** The pair pane (a Claude Code mod) sends chat by appending lines to `outbox.jsonl` in the session dir, and the server sends each one to the peer. A file is used because Claude Code denies a mod's MCP calls in auto mode. | Same location and lifetime as the inbox (T10). Only lines written after the server starts are sent, only while paired, each at most 16 KB; anything else is reported as `outbox_failed`. | Any process running as the same user, including Claude through a plain file write, can send the peer a message without calling `send_to_peer`. Such a process can already read the inbox (T10) and act as the user, and `send_to_peer` has no confirmation of its own, so this adds no new capability for Claude. Accepted for now (owner decision 2026-11-11). |
+
 ## Owner decisions (2026-11-05)
 
 1. The public relay's metadata exposure is acceptable for the pilot.
@@ -69,6 +71,10 @@ other agent tools (P3) and remembered peers are out of scope.
 ## Owner decisions (2026-11-08)
 
 1. Trust levels are guidance to Claude. pair doesn't gate tool calls with a PreToolUse hook, and there is no option to make it (T3).
+
+## Owner decisions (2026-11-11)
+
+1. The pair pane may send chat through an outbox file in the session dir, unauthenticated, for now (T15).
 
 ## Asks of the reviewer
 

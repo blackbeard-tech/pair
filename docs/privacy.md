@@ -21,8 +21,8 @@ content: everything is encrypted with keys only the two of you hold.
 
 In the plugin's data folder:
 
-- The session's inbox of pairing events and messages. Deleted when the Claude Code session ends; anything left by
-  a crash is removed after a day.
+- The session's inbox of pairing events and messages, and its outbox of messages typed in the pair pane. Deleted when
+  the Claude Code session ends; anything left by a crash is removed after a day.
 - Files your colleague sent you. Deleted after 7 days.
 
 Nothing is kept after you unpair or close the session, and pairings aren't remembered.

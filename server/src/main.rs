@@ -226,7 +226,8 @@ fn append_private(path: &Path, line: &str) -> std::io::Result<()> {
     o.create(true).append(true);
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::mode(&mut o, 0o600);
-    writeln!(o.open(path)?, "{line}")
+    // One write per line: writeln! can split it in two, and threads appending at once then merge events.
+    o.open(path)?.write_all(format!("{line}\n").as_bytes())
 }
 
 /// Deliver: append to this session's inbox, which the monitor (terminal), the plugin hooks (desktop
@@ -780,6 +781,39 @@ fn sweep(data: &Path) {
         if old {
             let _ = std::fs::remove_dir_all(d.path());
         }
+    }
+}
+
+/// The pair pane (mod) sends chat by appending {"text": "..."} lines to <session dir>/outbox.jsonl: mod MCP calls
+/// are denied in auto mode, so it can't call send_to_peer itself. Lines already there at startup are skipped.
+fn outbox(dir: PathBuf, st: St) {
+    let path = dir.join("outbox.jsonl");
+    let mut offset = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+    while dir.is_dir() {
+        let (lines, next) = read_new(&path, offset);
+        offset = next;
+        for l in lines {
+            let text = l["text"].as_str().unwrap_or("");
+            let (phase, peer) = {
+                let s = st.lock().unwrap();
+                (s.phase, s.peer.clone())
+            };
+            // Only while paired: before that, anything on the channel would end the pairing (session()).
+            let why = if text.is_empty() || text.len() > MAX_TEXT {
+                format!("it must be 1..={MAX_TEXT} bytes")
+            } else if phase != Phase::Paired {
+                "not paired".into()
+            } else if send(&st, json!({"t": "msg", "message": a2a_text(text)})) {
+                continue;
+            } else {
+                "not connected".into()
+            };
+            push(
+                json!({"kind": "outbox_failed", "peer": peer}),
+                &format!("A message from the pair pane wasn't sent: {why}."),
+            );
+        }
+        std::thread::sleep(Duration::from_millis(500));
     }
 }
 
@@ -1765,7 +1799,6 @@ fn main() {
         d.parent().and_then(Path::parent).map(sweep);
         let _ = std::fs::create_dir_all(d);
     }
-    SESSION_DIR.set(dir).ok();
     let out: Out = Arc::new(Mutex::new(std::io::stdout()));
     let st: St = Arc::new(Mutex::new(State {
         phase: Phase::Idle,
@@ -1777,6 +1810,11 @@ fn main() {
         relayed: false,
         resuming: false,
     }));
+    if let Some(d) = dir.clone() {
+        let st = st.clone();
+        std::thread::spawn(move || outbox(d, st));
+    }
+    SESSION_DIR.set(dir).ok();
     let stdin = std::io::stdin();
     let mut lines = stdin.lock().lines();
     let mut backlog = VecDeque::new();
