@@ -14,6 +14,10 @@ separately; each early entry names the plugin versions that used that binary.
 - `check_messages` no longer shows `from :` for events with no peer yet, such as an expired code. (GitHub #8)
 - `send_to_peer` says "queued for sending" instead of "sent": the message is on its way, not yet confirmed by the
   other side. Delivery confirmation is planned (GitHub #9). (GitHub #10)
+- Two events written at the same moment could merge into one inbox line, which the monitor and hooks then skipped.
+  Each event is now written in one piece.
+- For the coming pair pane: lines appended to `outbox.jsonl` in the session folder are sent to the peer while
+  paired. See `docs/threat-model.md` (T15).
 
 ## 0.1.13 (2026-11-08)
 
