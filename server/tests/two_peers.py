@@ -173,6 +173,17 @@ assert "@" in e.event("pair_request")["meta"]["peer"]
 assert not e.tool("pair_reject")[1]
 assert "declined" in f.event("unpaired")["content"]
 
+# Unpair while waiting for the other side ends it at once, so pair_start works straight after (GitHub #7)
+w = Peer("W")
+w.tool("pair_start")
+text, err = w.tool("unpair")
+assert not err and text == "Unpaired.", text
+assert "you unpaired" in w.event("unpaired")["content"]
+inbox = w.tool("check_messages")[0]
+assert "[unpaired]:" in inbox and "from :" not in inbox, inbox  # no peer yet: no "from" (GitHub #8)
+assert not w.tool("pair_start")[1], "pair_start right after unpair must work"
+w.tool("unpair")
+
 # Monitor path: with a live `pair watch` for G's session, G's events go to its session inbox and
 # come out of the watcher as single lines.
 import os, tempfile, time

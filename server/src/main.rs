@@ -802,10 +802,13 @@ fn check_messages(st: &St) -> Value {
     }
     for e in &events {
         let m = &e["meta"];
+        let from = match m["peer"].as_str().unwrap_or("") {
+            "" => String::new(), // e.g. an expired code: no peer yet
+            p => format!(" from {p}"),
+        };
         text.push_str(&format!(
-            "\n\n[{}] from {}{}:\n{}",
+            "\n\n[{}]{from}{}:\n{}",
             m["kind"].as_str().unwrap_or(""),
-            m["peer"].as_str().unwrap_or(""),
             m["trust"]
                 .as_str()
                 .map(|t| format!(" (trust: {t})"))
@@ -1076,7 +1079,8 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
                         false,
                     );
                 }
-                result_text(format!("sent{}", listener_reminder()), false)
+                // Handed to the connection, not confirmed by the peer (GitHub #9).
+                result_text(format!("queued for sending{}", listener_reminder()), false)
             } else {
                 result_text("not connected", true)
             }
@@ -1125,6 +1129,18 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
         },
         ("unpair", ph) if ph != Phase::Idle => {
             send(st, json!({"t": "bye"}));
+            // Wait for the pairing thread to finish, so pair_start/pair_join work straight after.
+            let t = Instant::now();
+            while st.lock().unwrap().phase != Phase::Idle {
+                if t.elapsed() > Duration::from_secs(3) {
+                    // Only while transit is being set up (up to a minute); the bye goes out after that.
+                    return result_text(
+                        "Unpairing: it ends once the connection setup finishes (within a minute).",
+                        false,
+                    );
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
             result_text("Unpaired.", false)
         }
         ("check_messages", _) => check_messages(st),
@@ -1274,7 +1290,12 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
         async_io::Timer::after(CODE_TTL).await;
         Err("the code expired after 2 minutes".to_string())
     };
-    let mut w = match future::or(connect, expire).await {
+    // In Waiting, unpair's bye is the only thing our side can send. Ending here drops the connect, as expiry does.
+    let cancel = async {
+        let _ = rx.recv().await;
+        Err("you unpaired".to_string())
+    };
+    let mut w = match future::or(connect, future::or(expire, cancel)).await {
         Ok(w) => w,
         Err(e) => return e,
     };
