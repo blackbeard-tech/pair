@@ -1040,9 +1040,9 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
     let tool = p["name"].as_str().unwrap_or("");
     if matches!(tool, "pair_start" | "pair_join") && *IS_CODEX.get().unwrap_or(&false) {
         // A UUID: it ends up on the codex command line, so nothing else gets through.
-        let thread = p["_meta"]["threadId"].as_str().filter(|t| {
-            !t.is_empty() && t.len() <= 64 && t.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
-        });
+        let thread = p["_meta"]["threadId"]
+            .as_str()
+            .filter(|t| !t.is_empty() && t.len() <= 64 && t.chars().all(|c| c.is_ascii_hexdigit() || c == '-'));
         if let Some(t) = thread {
             *CODEX_THREAD.lock().unwrap() = Some(t.to_string());
         }
