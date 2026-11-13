@@ -111,10 +111,17 @@ assert not a.tool("send_to_peer", text="hi bob")[1]
 msg = b.event("message")
 assert msg["content"] == "hi bob" and msg["meta"]["trust"] == "ask", msg
 # The pair pane (mod) sends chat by appending to the session's outbox (pair-cvl.7)
-with open(os.path.join(os.path.dirname(a.inbox), "outbox.jsonl"), "a") as f:
-    f.write(json.dumps({"text": "from the pane"}) + "\n")
+ob = os.path.join(os.path.dirname(a.inbox), "outbox.jsonl")
+with open(ob, "a") as f:
+    f.write(json.dumps({"id": "p0", "text": "from the pane"}) + "\n")
 msg = b.event("message")
 assert msg["content"] == "from the pane", msg
+# A mod can only rewrite the whole file; a rewrite caught half-way (empty file) must not resend earlier lines.
+old = open(ob).read()
+open(ob, "w").close()
+time.sleep(1.5)
+open(ob, "w").write(old + json.dumps({"id": "p1", "text": "pane again"}) + "\n")
+assert b.event("message")["content"] == "pane again"  # not "from the pane" a second time
 # Files: B sends to A; A saves to its quarantine dir; B hears it was delivered.
 import os, tempfile
 tmp = tempfile.mkdtemp()

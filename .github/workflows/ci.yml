@@ -64,6 +64,9 @@ jobs:
       - name: claude plugin validate
         run: npx --yes @anthropic-ai/claude-code@2.1.309 plugin validate plugin --strict
 
+      - name: pair pane tests (mod)
+        run: npx --yes @anthropic-ai/claude-code@2.1.309 plugin test plugin
+
       # GitHub can't hide a ref namespace in a public repo; beads' Dolt data lives in a
       # separate private repo. Fail loudly if refs/dolt/* ever lands here.
       - name: no refs/dolt in this repo

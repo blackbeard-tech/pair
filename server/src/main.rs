@@ -810,15 +810,24 @@ fn sweep(data: &Path) {
     }
 }
 
-/// The pair pane (mod) sends chat by appending {"text": "..."} lines to <session dir>/outbox.jsonl: mod MCP calls
-/// are denied in auto mode, so it can't call send_to_peer itself. Lines already there at startup are skipped.
+/// The pair pane (mod) sends chat by appending {"id": "...", "text": "..."} lines to <session dir>/outbox.jsonl: mod
+/// MCP calls are denied in auto mode, so it can't call send_to_peer itself. Lines already there at startup are skipped.
+/// A mod can only rewrite the whole file, and a read mid-rewrite sees it shrink and starts over from 0, so a line
+/// whose id was already handled is skipped.
 fn outbox(dir: PathBuf, st: St) {
     let path = dir.join("outbox.jsonl");
-    let mut offset = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+    let (old, mut offset) = read_new(&path, 0);
+    let mut seen: std::collections::HashSet<String> =
+        old.iter().filter_map(|l| l["id"].as_str().map(str::to_owned)).collect();
     while dir.is_dir() {
         let (lines, next) = read_new(&path, offset);
         offset = next;
         for l in lines {
+            if let Some(id) = l["id"].as_str()
+                && !seen.insert(id.to_owned())
+            {
+                continue;
+            }
             let text = l["text"].as_str().unwrap_or("");
             let (phase, peer) = {
                 let s = st.lock().unwrap();
