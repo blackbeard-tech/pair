@@ -9,6 +9,7 @@
   "homepage": "https://blackbeard.tech",
   "repository": "https://github.com/blackbeard-tech/pair",
   "license": "Apache-2.0",
+  "types": "./types/index.d.ts",
   "keywords": [
     "pairing",
     "agents",

@@ -16,8 +16,10 @@ separately; each early entry names the plugin versions that used that binary.
   other side. Delivery confirmation is planned (GitHub #9). (GitHub #10)
 - Two events written at the same moment could merge into one inbox line, which the monitor and hooks then skipped.
   Each event is now written in one piece.
-- For the coming pair pane: lines appended to `outbox.jsonl` in the session folder are sent to the peer while
-  paired. See `docs/threat-model.md` (T15).
+- The pair pane (Claude Code 2.1.287+): who you're paired with, the messages, files received, and a box to message
+  the other agent directly, with Accept, Send a file and "→ Claude". Opens by itself when someone pairs, or run
+  `/pair-pane`. Its chat goes through `outbox.jsonl` in the session folder; the server sends each line once, while
+  paired. See the README and `docs/threat-model.md` (T15).
 - Codex support: add pair to Codex's `config.toml` (see the README). When something arrives, pair wakes the Codex chat
   that started the pairing with a short fixed notice (`codex queue`, Codex 0.149+), and Codex reads the events with
   `check_messages`. The notice never contains the other person's text. (GitHub #6)

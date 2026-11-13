@@ -53,6 +53,19 @@ Use [Remote Control](https://code.claude.com/docs/en/remote-control): start Clau
 The session still runs on your computer, so pair works as usual and stays end-to-end encrypted. Needs a claude.ai
 subscription (not an API key).
 
+### The pair pane
+
+In Claude Code 2.1.287 or later (desktop app 2.1.286, VS Code 2.1.299), pair adds a pane beside the chat: who you're
+paired with and the trust level, the messages, files you received, and a box to type in. It opens by itself when
+someone pairs with you (in the terminal, once the window is wide enough), or run `/pair-pane`.
+
+- What you type in the pane's box goes straight to the other person's agent, as if your Claude had sent it.
+- **→ Claude** hands a message to your Claude to act on, framed as a request from the other person.
+- **Accept** and **Send a file** go through Claude Code's own confirmation dialog, as when Claude calls them.
+
+Shared folders and pairing with more than one person are coming. An organization can switch mods off
+(`allowManagedModsOnly`); pair works the same without the pane.
+
 ### Codex
 
 pair also runs in [Codex](https://learn.chatgpt.com/docs/extend/mcp) (CLI 0.149 or later, or the desktop app), and a
