@@ -6,7 +6,7 @@ What changed in each release of pair, newest first. Install or update in Claude 
 From 0.1.6 the plugin and its binary always share one version number. Before that they were numbered
 separately; each early entry names the plugin versions that used that binary.
 
-## Unreleased
+## 0.1.14 (2026-11-13)
 
 - `unpair` now cancels a pairing that is still waiting for the other side. Before, it said "Unpaired." but the code
   stayed live until it expired, and `pair_start` / `pair_join` failed with `state: Waiting` for up to 2 minutes.
