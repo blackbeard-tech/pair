@@ -18,6 +18,11 @@ separately; each early entry names the plugin versions that used that binary.
   Each event is now written in one piece.
 - For the coming pair pane: lines appended to `outbox.jsonl` in the session folder are sent to the peer while
   paired. See `docs/threat-model.md` (T15).
+- Codex support: add pair to Codex's `config.toml` (see the README). When something arrives, pair wakes the Codex chat
+  that started the pairing with a short fixed notice (`codex queue`, Codex 0.149+), and Codex reads the events with
+  `check_messages`. The notice never contains the other person's text. (GitHub #6)
+- `check_messages` right after a monitor or hook event could miss that event; events are now queued before they're
+  written to the inbox file.
 
 ## 0.1.13 (2026-11-08)
 

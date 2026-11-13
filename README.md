@@ -53,6 +53,22 @@ Use [Remote Control](https://code.claude.com/docs/en/remote-control): start Clau
 The session still runs on your computer, so pair works as usual and stays end-to-end encrypted. Needs a claude.ai
 subscription (not an API key).
 
+### Codex
+
+pair also runs in [Codex](https://learn.chatgpt.com/docs/extend/mcp) (CLI 0.149 or later, or the desktop app), and a
+Codex session can pair with a Claude Code session. Clone this repo and add pair to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.pair]
+command = "/path/to/pair/plugin/scripts/pair"   # Windows: C:\\path\\to\\pair\\plugin\\scripts\\pair.cmd
+```
+
+Then ask Codex to start or join a pairing. Codex has no plugin monitor or hooks that can wake an idle chat, so when
+something arrives pair runs `codex queue` to add a short, fixed `[pair]` notice to the chat that started the pairing,
+and Codex reads the events with `check_messages`. The notice never contains the other person's text. If `codex`
+isn't on the PATH Codex starts pair with (likely with the desktop app), set its full path in the same section:
+`env = { PAIR_CODEX_BIN = "/full/path/to/codex" }`.
+
 ## Free and paid (planned)
 
 pair stays free and open source. A paid version is planned for networks that block the public relays. Nothing in
