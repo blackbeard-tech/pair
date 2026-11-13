@@ -18,17 +18,18 @@ BIN = sys.argv[1]
 
 
 class Peer:
-    def __init__(self, label, env=None):
+    def __init__(self, label, env=None, client="t"):
         self.label, self.n = label, 0
         # Events go to <PAIR_DATA>/sessions/<session id>/inbox.jsonl (what the monitor, hooks and pair wait read).
         env = env or dict(os.environ, PAIR_DATA=tempfile.mkdtemp(), CLAUDE_CODE_SESSION_ID=f"test-{label}")
-        self.inbox = os.path.join(env["PAIR_DATA"], "sessions", env["CLAUDE_CODE_SESSION_ID"], "inbox.jsonl")
+        if "PAIR_DATA" in env and "CLAUDE_CODE_SESSION_ID" in env:  # Codex passes neither: no inbox file
+            self.inbox = os.path.join(env["PAIR_DATA"], "sessions", env["CLAUDE_CODE_SESSION_ID"], "inbox.jsonl")
         self.seen = 0
         self.answer = "accept"  # reply to elicitation dialogs (the human's yes/no)
         self.p = subprocess.Popen([BIN], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
         self.q = queue.Queue()
         threading.Thread(target=self._read, daemon=True).start()
-        r = self.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {"elicitation": {}}, "clientInfo": {"name": "t"}})
+        r = self.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {"elicitation": {}}, "clientInfo": {"name": client}})
         assert r["capabilities"] == {"tools": {}}, r  # no channel, no permission relay
 
     def _read(self):
@@ -54,8 +55,8 @@ class Peer:
                 return m["result"]
             self.q.put(m)  # a notification raced the response; requeue
 
-    def tool(self, tool, **args):
-        r = self.rpc("tools/call", {"name": tool, "arguments": args})
+    def tool(self, tool, meta=None, **args):
+        r = self.rpc("tools/call", {"name": tool, "arguments": args, **({"_meta": meta} if meta else {})})
         return r["content"][0]["text"], r["isError"]
 
     def event(self, kind, timeout=30):
@@ -191,6 +192,51 @@ with open(os.path.join(os.path.dirname(w.inbox), "outbox.jsonl"), "a") as f:
 assert "not paired" in w.event("outbox_failed")["content"]
 assert not w.tool("pair_start")[1], "pair_start right after unpair must work"
 w.tool("unpair")
+
+# Codex: no hooks or monitor, so pair runs `codex queue` to wake the chat that started the pairing. Fixed text,
+# never peer content, once until check_messages. A fake codex records its arguments. (GitHub #6)
+if os.name != "nt":
+    cdir = tempfile.mkdtemp()
+    fake, log = os.path.join(cdir, "codex"), os.path.join(cdir, "codex.log")
+    open(fake, "w").write("#!/usr/bin/env python3\nimport json, os, sys\n"
+                          "open(os.environ['FAKE_CODEX_LOG'], 'a').write(json.dumps(sys.argv[1:]) + '\\n')\n")
+    os.chmod(fake, 0o755)
+
+    def wakes(n):
+        """Wait for the nth wake, then make sure no extra one follows."""
+        end = time.time() + 15
+        while time.time() < end:
+            got = [json.loads(l) for l in open(log)] if os.path.exists(log) else []
+            if len(got) >= n:
+                time.sleep(1)
+                got = [json.loads(l) for l in open(log)]
+                assert len(got) == n, got
+                return got
+            time.sleep(0.1)
+        raise TimeoutError(f"no wake #{n}")
+
+    # Codex passes HOME and PATH but not CLAUDE_CODE_SESSION_ID or a plugin data dir.
+    cenv = {k: v for k, v in os.environ.items() if k not in ("PAIR_DATA", "CLAUDE_CODE_SESSION_ID")}
+    cx = Peer("CX", env=dict(cenv, PAIR_CODEX_BIN=fake, FAKE_CODEX_LOG=log), client="codex-mcp-client")
+    thread = "0199a0c4-7b1e-7f00-8000-123456789abc"
+    text, err = cx.tool("pair_start", meta={"threadId": thread}, name="Cody")
+    assert not err and "[pair] notice" in text, text
+    cl = Peer("CL")
+    cl.tool("pair_join", code=code_of(text), name="Cleo")
+    w = wakes(1)[0]
+    assert w[:4] == ["queue", "--thread", thread, "--message"] and "check_messages" in w[4], w
+    assert "[pair_request] from Cleo" in cx.tool("check_messages")[0]
+    assert not cx.tool("pair_accept")[1]
+    cl.event("paired")
+    assert not cl.tool("send_to_peer", text="secret one")[1]
+    assert not cl.tool("send_to_peer", text="secret two")[1]
+    got = wakes(2)  # two messages, one wake
+    assert not any("secret" in a for w in got for a in w), got
+    inbox = cx.tool("check_messages")[0]
+    assert "secret one" in inbox and "secret two" in inbox, inbox
+    cl.tool("unpair")
+    wakes(3)  # woken again after check_messages
+    assert "other side unpaired" in cx.tool("check_messages")[0]
 
 # Monitor path: with a live `pair watch` for G's session, G's events go to its session inbox and
 # come out of the watcher as single lines.
