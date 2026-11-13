@@ -15,7 +15,8 @@ const PANE = {
   },
 } as const
 
-const DIR = '/home/u/.claude/plugins/data/pair-inline/sessions/S1'
+const DATA = '/home/u/.claude/plugins/data'
+const DIR = `${DATA}/pair-inline/sessions/S1`
 const line = (kind: string, peer: string, content: string, trust?: string) =>
   `${JSON.stringify({ meta: { kind, peer, ...(trust ? { trust } : {}) }, content })}\n`
 
@@ -23,15 +24,19 @@ const line = (kind: string, peer: string, content: string, trust?: string) =>
 function world(on: On) {
   const files: Record<string, string> = { [`${DIR}/inbox.jsonl`]: '' }
   const calls: { tool: string; args: unknown }[] = []
+  const w = { files, calls, isUp: true } // isUp: pair has made this session's folder
   mock.env(on, { HOME: '/home/u' })
   const clock = mock.clock(on)
   on('session.id', () => ({ value: 'S1' }))
   on('command.register', () => ({ value: { command: 'pair-pane' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.toast', () => ({ value: undefined }))
-  on('fs.exists', (_, e) => ({ value: e.path === DIR || e.path in files }))
+  on('fs.exists', (_, e) => ({ value: e.path === DATA || (w.isUp && (e.path === DIR || e.path in files)) }))
+  on('fs.list', () => ({
+    value: ['other-plugin', 'pair-inline'].map(name => ({ name, kind: 'dir' as const, size: 0, mtimeMs: 0, isLink: false })),
+  }))
   on('fs.read', (_, e) => {
-    const text = files[e.path]
+    const text = w.isUp ? files[e.path] : undefined
     if (text === undefined) throw new Error('missing')
     return { value: text }
   })
@@ -44,7 +49,7 @@ function world(on: On) {
     return { value: { content: [{ type: 'text', text: `${e.tool} ok` }], isError: false } }
   })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
-  return { files, calls, clock }
+  return { ...w, w, clock }
 }
 
 test('a pairing request, Accept, then a message', async ($, on) => {
@@ -88,17 +93,20 @@ test('chat goes to the outbox with an id, earlier lines kept', async ($, on) => 
   await ui.unmount()
 })
 
-test('not running in this session: the pane says so', async ($, on) => {
-  mock.env(on, { HOME: '/home/u' })
-  mock.clock(on)
-  on('session.id', () => ({ value: 'S2' }))
-  on('command.register', () => ({ value: { command: 'pair-pane' } }))
-  on('fs.exists', () => ({ value: false }))
-  on('session.start', (_, e) => ({ cwd: e.cwd }))
+test('pair starts after the pane: it says so, then finds the session', async ($, on) => {
+  const env = world(on)
+  env.w.isUp = false
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await env.clock.advance(1000)
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /isn’t running in this session/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /Not paired/ })).toBeDefined()
+
+  env.w.isUp = true
+  env.files[`${DIR}/inbox.jsonl`] += line('pair_request', 'u@h · Cy · c@x', 'Someone named …')
+  await env.clock.advance(1000)
+  expect(await ui.find({ type: 'Text', text: /isn’t running in this session/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /Cy wants to pair/ })).toBeDefined()
   await ui.unmount()
 })

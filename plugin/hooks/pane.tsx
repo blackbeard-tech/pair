@@ -78,25 +78,52 @@ function nextStatus(s: PairStatus, e: PairEvent): PairStatus {
   }
 }
 
-/** pair's data folder for this session: <config>/plugins/data/<name>-<marketplace>/sessions/<session id>. */
+/**
+ * pair's folder for this session, `<config>/plugins/data/<data dir>/sessions/<session id>`, or '' until the server
+ * or the SessionStart hook has made it. No mod API names the plugin's data dir (`pair-bbtech`, `pair-inline`, ...),
+ * so take the `pair-*` one that holds this session.
+ */
 async function sessionDir($: EngineInterface): Promise<string> {
-  const root = $.plugin.root.replace(/\\/g, '/')
-  const installed = root.match(/^(.*)\/plugins\/cache\/([^/]+)\/([^/]+)\/[^/]+$/)
-  const config = installed
-    ? installed[1]
-    : ((await $.env.get('CLAUDE_CONFIG_DIR')) ??
-      `${(await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE'))}/.claude`)
-  const id = installed ? `${installed[3]}@${installed[2]}` : `${$.plugin.name}@inline`
-  const d = `${config}/plugins/data/${id.replace(/[^a-zA-Z0-9_-]/g, '-')}/sessions/${await $.session.id()}`
-  return (await $.fs.exists(d)) ? d : ''
+  const installed = $.plugin.root.replace(/\\/g, '/').match(/^(.*)\/plugins\/cache\//)
+  const config =
+    installed?.[1] ??
+    (await $.env.get('CLAUDE_CONFIG_DIR')) ??
+    `${(await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE'))}/.claude`
+  const data = `${config}/plugins/data`
+  if (!(await $.fs.exists(data))) return ''
+  const sid = await $.session.id()
+  for (const entry of await $.fs.list(data)) {
+    if (entry.kind !== 'dir' || !entry.name.startsWith(`${$.plugin.name}-`)) continue
+    const d = `${data}/${entry.name}/sessions/${sid}`
+    if (await $.fs.exists(d)) return d
+  }
+  return ''
+}
+
+let polling = false // a slow read must not overlap the next tick: both would add the same lines
+
+async function poll($: EngineInterface) {
+  if (polling) return
+  polling = true
+  try {
+    await pollOnce($)
+  } finally {
+    polling = false
+  }
 }
 
 /** New complete lines of the inbox: rows for the pane, and the status they lead to. */
-async function poll($: EngineInterface) {
-  const d = await read($, dir)
-  if (!d) return
+async function pollOnce($: EngineInterface) {
+  let d = await read($, dir)
+  if (!d) {
+    d = await sessionDir($)
+    if (!d) return
+    await update($, dir, () => d)
+  }
   let text: string
   try {
+    // ponytail: rereads the whole inbox each second, and $.fs.read stops at 4 MiB (thousands of long messages);
+    // read from an offset if a mod API ever offers one
     text = await $.fs.read(`${d}/inbox.jsonl`)
   } catch {
     return
@@ -134,8 +161,14 @@ const firstText = (r: { content: { type: string; text?: string }[] }) =>
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'pair-pane', description: 'Open the pair pane: peer, chat and files' })
-    await update($, dir, () => '')
-    void sessionDir($).then(d => update($, dir, () => d))
+    // A reload keeps the state: start over only when this is another session (a resume).
+    const sid = await $.session.id()
+    if (!(await read($, dir)).endsWith(`/sessions/${sid}`)) {
+      await update($, dir, () => '')
+      await update($, seen, () => 0)
+      await update($, events, () => [])
+      await update($, status, (): PairStatus => ({ phase: 'idle' }))
+    }
     $.clock.every(1000, () => void poll($))
     return next(e)
   })
