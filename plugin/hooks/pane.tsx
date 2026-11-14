@@ -196,6 +196,11 @@ async function openPane($: EngineInterface, focus: boolean) {
 
 let polling = false // a slow read must not overlap the next tick: both would add the same lines
 
+// The "Hand messages to Claude automatically" option (userConfig hand_to_claude, default on). The server reads it from
+// <session dir>/deliver, and counts a file older than 30 s as on, so it is rewritten every 10 s while the mod runs.
+let handToClaudeAuto = true
+let deliverWrittenAt = 0
+
 async function poll($: EngineInterface) {
   if (polling) return
   polling = true
@@ -213,6 +218,11 @@ async function pollOnce($: EngineInterface) {
     d = await sessionDir($)
     if (!d) return
     await update($, dir, () => d)
+  }
+  const now0 = await $.clock.now()
+  if (now0 - deliverWrittenAt >= 10_000) {
+    await $.fs.write(`${d}/deliver`, handToClaudeAuto ? 'on\n' : 'off\n')
+    deliverWrittenAt = now0
   }
   let text: string
   try {
@@ -302,7 +312,10 @@ async function handToClaude($: EngineInterface, m: PairEvent) {
 const firstText = (r: { content: { type: string; text?: string }[] }) =>
   r.content.find(c => c.type === 'text')?.text ?? ''
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  handToClaudeAuto = options.hand_to_claude !== false
+  deliverWrittenAt = 0 // a reload (also a change of the option) writes it again at once
+
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'pair-pane', description: 'Open the pair pane: peer, chat and files' })
     // A reload keeps the state: start over only when this is another session (a resume).
@@ -601,6 +614,9 @@ export const register: Register = on => {
               Decline
             </Button>
           </Box>
+        )}
+        {!handToClaudeAuto && s.phase === 'paired' && (
+          <Text dimColor>Messages wait here until you press → Claude (setting: Hand messages to Claude automatically).</Text>
         )}
         {chat.length === 0 && <Text dimColor>No messages yet.</Text>}
         {chat.slice(-room).map(row)}

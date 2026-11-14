@@ -70,6 +70,9 @@ someone pairs with you (in the terminal, once the window is wide enough), or run
 - What you type in the pane's box goes straight to the other person's agent, as if your Claude had sent it.
 - **→ Claude** hands a message to your Claude to act on, framed as a request from the other person.
 - **Accept** and **Send a file** go through Claude Code's own confirmation dialog, as when Claude calls them.
+- **Hand messages to Claude automatically** (on by default, in `/plugin` → pair → options): turn it off and your
+  colleague's messages and files wait in the pane until you press **→ Claude**. Pairing requests and connection news
+  still reach Claude. Without the pane (mods switched off) everything goes to Claude as before.
 
 Shared folders and pairing with more than one person are coming. An organization can switch mods off
 (`allowManagedModsOnly`); pair works the same without the pane.

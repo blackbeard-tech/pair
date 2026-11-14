@@ -10,6 +10,14 @@
   "repository": "https://github.com/blackbeard-tech/pair",
   "license": "Apache-2.0",
   "types": "./types/index.d.ts",
+  "userConfig": {
+    "hand_to_claude": {
+      "type": "boolean",
+      "title": "Hand messages to Claude automatically",
+      "description": "On: your colleague's messages and files go to Claude as they arrive. Off: they wait in the pair pane until you press → Claude (needs the pane; without it they always go to Claude).",
+      "default": true
+    }
+  },
   "keywords": [
     "pairing",
     "agents",
