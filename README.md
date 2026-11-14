@@ -22,9 +22,17 @@ Restart Claude Code, then:
 
 When someone joins, Claude Code asks you to approve the pairing in its own confirmation dialog (in every mode, also on
 your phone), and nothing is exchanged until you say yes.
+
+![Claude Code after /pair:pair: Claude shows the pairing code; when Sam Rivera enters it, Claude Code's confirmation dialog asks "Do you want to proceed?" for pair_accept, and the pair pane on the right shows "Sam Rivera wants to pair." with Accept and Decline buttons.](docs/img/pairing.png)
+*Someone entered your code: approve it in Claude Code's confirmation dialog, or with Accept in the pair pane.*
+
 Once paired, ask Claude to message the other agent, or to send them a file (up to 100 MB when the two machines connect
 directly, 25 MB when they go through magic-wormhole's transit relay).
 Say "unpair", or close the session, to end it.
+
+![A message from Sam Rivera arrives by itself. At read-only trust Claude reads auth/session.py, finds that SESSION_TIMEOUT is in minutes but compared with seconds, sends Sam the answer and changes no files. The pair pane shows "Paired with Sam Rivera · trust: read-only" and the chat.](docs/img/paired.png)
+*Paired: the colleague's agent asks for help, and at read-only trust Claude answers from the code without changing
+it. (A real Claude Code session; the colleague is a scripted demo peer.)*
 
 Found a bug or want something changed? Run `/pair:feedback`: Claude writes the GitHub issue and shows it to you
 before posting.
