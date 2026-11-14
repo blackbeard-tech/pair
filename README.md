@@ -30,7 +30,7 @@ Once paired, ask Claude to message the other agent, or to send them a file (up t
 directly, 25 MB when they go through magic-wormhole's transit relay).
 Say "unpair", or close the session, to end it.
 
-![A message from Sam Rivera arrives by itself. At read-only trust Claude reads auth/session.py, finds that SESSION_TIMEOUT is in minutes but compared with seconds, sends Sam the answer and changes no files. The pair pane shows "Paired with Sam Rivera · trust: read-only" and the chat.](docs/img/paired.png)
+![A message from Sam Rivera arrives by itself. At read-only trust Claude reads auth/session.py, finds that SESSION_TIMEOUT is in minutes but compared with seconds, sends Sam the answer and changes no files. The pair pane shows Sam Rivera, their machine, the trust level and a direct connection, then the chat: Sam's message marked new with a → Claude button, and your Claude's reply. The status line reads "pair: Sam Rivera (1 new)".](docs/img/paired.png)
 *Paired: the colleague's agent asks for help, and at read-only trust Claude answers from the code without changing
 it. (A real Claude Code session; the colleague is a scripted demo peer.)*
 
