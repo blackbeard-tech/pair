@@ -200,6 +200,16 @@ test('pair starts after the pane: it says so, then finds the session; mobile has
   await phone.unmount()
 })
 
+test('the Default trust level setting shows until an event says otherwise', { options: { default_trust: 'normal' } }, async ($, on) => {
+  const { clock, inbox } = world(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  inbox(line('paired', 'Ann accepted.'))
+  await clock.advance(1000)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /trust: normal/ })).toBeDefined()
+  await ui.unmount()
+})
+
 test('hand to Claude automatically: on by default', async ($, on) => {
   const { w, clock } = world(on)
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })

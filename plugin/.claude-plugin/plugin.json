@@ -16,6 +16,13 @@
       "title": "Hand messages to Claude automatically",
       "description": "On: your colleague's messages and files go to Claude as they arrive. Off: they wait in the pair pane until you press → Claude (needs the pane; without it they always go to Claude).",
       "default": true
+    },
+    "default_trust": {
+      "type": "string",
+      "title": "Default trust level",
+      "description": "What your colleague's requests may make Claude do without asking you, when you don't name a level as you pair. read-only: answer and read files, ask before anything else. ask: ask before anything. normal: Claude's usual judgement and your permission mode.",
+      "options": ["read-only", "ask", "normal"],
+      "default": "read-only"
     }
   },
   "keywords": [
@@ -28,7 +35,8 @@
     "pair": {
       "command": "${CLAUDE_PLUGIN_ROOT}/scripts/pair",
       "env": {
-        "PAIR_DATA": "${CLAUDE_PLUGIN_DATA}"
+        "PAIR_DATA": "${CLAUDE_PLUGIN_DATA}",
+        "PAIR_DEFAULT_TRUST": "${user_config.default_trust}"
       }
     }
   }
