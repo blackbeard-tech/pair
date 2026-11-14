@@ -1,6 +1,6 @@
-# release v0.1.14  (binaries the launchers fetch; they refuse any asset whose sha256 is not listed here)
-08c94f0b81ecac94e2e0e6636f4d5259c2c6d9bc69adc9b938e9ecb4d3c13ef5  pair-linux-arm64
-1654b20d5335ce7eb7f294910ed611ad09c2bbe99cfa4eb30b487b4c8de9ce93  pair-linux-x64
-327213aa627c438a9d6fcbd32745d92e8cb984dcafdcb40a288a35cae4498e6c  pair-macos-arm64
-25008dda9b097aacdce6e5939c8cfc28723b14116f3c93d65b16aa3c0b0ad8ac  pair-macos-x64
-4a9996df4f7a922e2933f577a825bea92245abca62118e13a13cd3a29da422ed  pair-windows-x64.exe
+# release v0.1.15  (binaries the launchers fetch; they refuse any asset whose sha256 is not listed here)
+c6e6083f5cb2e3c070e6849435827edc097884ca7aed0575e8a2e6cd03104c4c  pair-linux-arm64
+4e2317228f799cb9fd6046c4228f88289fca15a3af34f39a4d55421e10cd72f0  pair-linux-x64
+87d58dbf3b9b7ca662b0b1cd82c5e74c9442cf8d02759c7fe24eb7835ce19ae3  pair-macos-arm64
+07ffcc02deb85daa066b8366274bb65b2e2f884667440a3552b1179bd55e96b2  pair-macos-x64
+8fe4826f443b12d0973393901a68f1707d492a70428c62ce09b13a8563ccbed1  pair-windows-x64.exe
