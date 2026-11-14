@@ -23,6 +23,8 @@ separately; each early entry names the plugin versions that used that binary.
 - Windows with Git Bash: the first download of the pair binary by a hook or the monitor could fail with "checksum
   mismatch" when the plugin data folder was a `C:\...` path, so live delivery didn't start in that session. The
   launcher now checks the download correctly.
+- When someone enters your code, Claude goes straight to the confirmation dialog instead of first asking you in
+  chat as well, and afterwards says that you approved the pairing rather than that it accepted it.
 
 ## 0.1.16 (2026-11-14)
 
