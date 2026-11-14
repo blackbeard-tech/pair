@@ -8,6 +8,9 @@ separately; each early entry names the plugin versions that used that binary.
 
 ## Unreleased
 
+- New option, **Hand messages to Claude automatically** (on by default). Off, your colleague's messages and files
+  wait in the pair pane until you press → Claude; pairing requests and connection news still reach Claude. Without the
+  pane, everything goes to Claude as before.
 - The pair pane follows the approved design: a header with the person you're paired with, their machine, the trust
   level and whether the connection is direct; Chat and Files tabs; timestamped messages from them, from you and from
   your Claude, with "new" until you've seen them and "→ Claude" to hand one over; received files with Open, Reveal

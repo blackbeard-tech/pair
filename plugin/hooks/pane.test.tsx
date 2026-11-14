@@ -199,3 +199,21 @@ test('pair starts after the pane: it says so, then finds the session; mobile has
   expect(await phone.find({ key: 'chat' })).toBeUndefined()
   await phone.unmount()
 })
+
+test('hand to Claude automatically: on by default', async ($, on) => {
+  const { w, clock } = world(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await clock.advance(1000)
+  expect(w.files[`${DIR}/deliver`]).toBe('on\n')
+})
+
+test('hand to Claude automatically, off: the server is told, and the pane says messages wait', { options: { hand_to_claude: false } }, async ($, on) => {
+  const { w, clock, inbox } = world(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  inbox(line('paired', 'Ann accepted.'))
+  await clock.advance(1000)
+  expect(w.files[`${DIR}/deliver`]).toBe('off\n')
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /Messages wait here until you press → Claude/ })).toBeDefined()
+  await ui.unmount()
+})

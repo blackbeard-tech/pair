@@ -612,7 +612,7 @@ fn wait(dir: &Path) {
         }
         let (events, next) = read_new(&inbox, offset);
         offset = next;
-        let events: Vec<_> = events.into_iter().filter(|e| !is_probe(e)).collect();
+        let events: Vec<_> = events.into_iter().filter(|e| !is_probe(e) && !held(dir, e)).collect();
         if !events.is_empty() {
             for e in &events {
                 println!("{}", watch_line(e));
@@ -672,6 +672,16 @@ fn listener_reminder() -> String {
 
 fn is_probe(e: &Value) -> bool {
     e["meta"]["kind"] == "probe"
+}
+
+/// The pair pane's "hand messages to Claude automatically" option, off: the pane writes "off" to <session dir>/deliver
+/// every 10 s. The peer's messages and files then reach Claude only when the user hands them over; pairing events
+/// still do. A file older than 30 s counts as on: with the mod gone (switched off, blocked) nothing could show them.
+fn held(dir: &Path, e: &Value) -> bool {
+    let path = dir.join("deliver");
+    matches!(e["meta"]["kind"].as_str(), Some("message" | "file"))
+        && fresh_for(&path, WATCH_FRESH)
+        && std::fs::read_to_string(&path).is_ok_and(|s| s.trim() == "off")
 }
 
 /// Hook input: the JSON Claude Code sends on stdin.
@@ -739,7 +749,7 @@ fn hook_inbox(data: &str) -> i32 {
     for e in &events {
         if is_probe(e) {
             let _ = touch(&dir.join("hook.ok"));
-        } else if !monitor_alive(&dir) {
+        } else if !monitor_alive(&dir) && !held(&dir, e) {
             eprintln!("{}", watch_line(e));
             printed += 1;
         }
@@ -775,7 +785,7 @@ fn watch(data: Option<String>) {
         }
         let (events, next) = read_new(&inbox, offset);
         offset = next;
-        for e in events.iter().filter(|e| !is_probe(e)) {
+        for e in events.iter().filter(|e| !is_probe(e) && !held(&dir, e)) {
             println!("{}", watch_line(e));
         }
         let _ = std::io::stdout().flush();
@@ -2069,6 +2079,29 @@ mod tests {
         assert_eq!(watch_line(&e), r#"pair unpaired: "Pairing ended: x""#);
         let e = json!({"meta": {"kind": "message", "peer": "a@b · Ann"}, "content": "hi"});
         assert_eq!(watch_line(&e), r#"pair message from "Ann": "hi""#);
+    }
+
+    #[test]
+    fn deliver_off_holds_only_peer_content() {
+        let dir = std::env::temp_dir().join(format!("pair-held-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let ev = |kind: &str| json!({"meta": {"kind": kind}, "content": ""});
+        assert!(!held(&dir, &ev("message")), "no file: delivered (the default)");
+        std::fs::write(dir.join("deliver"), "off\n").unwrap();
+        assert!(held(&dir, &ev("message")) && held(&dir, &ev("file")));
+        assert!(!held(&dir, &ev("pair_request")) && !held(&dir, &ev("unpaired")));
+        // The pane stopped refreshing it (mods switched off): delivered again.
+        let old = SystemTime::now() - Duration::from_secs(60);
+        std::fs::File::options()
+            .write(true)
+            .open(dir.join("deliver"))
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+        assert!(!held(&dir, &ev("message")), "stale off counts as on");
+        std::fs::write(dir.join("deliver"), "on").unwrap();
+        assert!(!held(&dir, &ev("message")));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
