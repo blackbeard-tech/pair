@@ -25,9 +25,10 @@ separately; each early entry names the plugin versions that used that binary.
   `check_messages`. The notice never contains the other person's text. (GitHub #6)
 - `check_messages` right after a monitor or hook event could miss that event; events are now queued before they're
   written to the inbox file.
-- A reconnect no longer ends the pairing when the connection library hits an internal error mid-setup: it tries
-  again. Such an error is reported as pair's own ("pair hit an internal error"), no longer as "the peer sent
-  malformed data". (A failed first connection still ends the pairing: GitHub #26.)
+- A pairing no longer ends when the connection can't be opened, or the connection library hits an internal error
+  mid-setup, right after you approve: like a dropped connection, it retries by itself for up to 10 minutes and both
+  of you are told. A reconnect survives that error too. It is reported as pair's own ("pair hit an internal
+  error"), no longer as "the peer sent malformed data". (GitHub #26)
 
 ## 0.1.13 (2026-11-08)
 
