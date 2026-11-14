@@ -1,5 +1,5 @@
 ---
-description: When a prompt confirms pair_accept, a pairing request goes straight to it instead of a "yes?" in chat first.
+description: When a confirmation dialog confirms pair_accept, a pairing request goes straight to it instead of a "yes?" in chat first.
 max_turns: 8
 allowed_tools: [Skill]
 # Claude Code puts the pair server's instructions (initialize result) in the system prompt; mocks can't, so they are copied here.
