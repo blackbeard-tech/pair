@@ -8,6 +8,10 @@ and the two agents can message each other and exchange files you approve, end-to
 Built by [Blackbeard Technologies](https://blackbeard.tech). Source, full documentation and threat model:
 [github.com/blackbeard-tech/pair](https://github.com/blackbeard-tech/pair).
 
+![Claude shows the pairing code; when a colleague enters it, Claude Code's confirmation dialog asks whether to pair, and the pair pane shows Accept and Decline.](https://raw.githubusercontent.com/blackbeard-tech/pair/main/docs/img/pairing.png)
+
+![A colleague's message arrives by itself. At read-only trust Claude reads the code, sends the answer back and changes no files.](https://raw.githubusercontent.com/blackbeard-tech/pair/main/docs/img/paired.png)
+
 ## Install
 
 In Claude Code:

@@ -9,6 +9,10 @@
   "homepage": "https://blackbeard.tech",
   "repository": "https://github.com/blackbeard-tech/pair",
   "license": "Apache-2.0",
+  "icon": "./.claude-plugin/icon.png",
+  "documentationUrl": "https://github.com/blackbeard-tech/pair#readme",
+  "supportUrl": "https://github.com/blackbeard-tech/pair/issues",
+  "privacyPolicyUrl": "https://github.com/blackbeard-tech/pair/blob/main/docs/privacy.md",
   "types": "./types/index.d.ts",
   "userConfig": {
     "hand_to_claude": {
@@ -27,8 +31,14 @@
   },
   "keywords": [
     "pairing",
+    "pair-programming",
+    "collaboration",
     "agents",
+    "multi-agent",
     "a2a",
+    "messaging",
+    "file-transfer",
+    "end-to-end-encryption",
     "magic-wormhole"
   ],
   "mcpServers": {
