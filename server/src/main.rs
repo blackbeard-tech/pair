@@ -261,8 +261,9 @@ fn append_private(path: &Path, line: &str) -> std::io::Result<()> {
 fn push(meta: Value, content: &str) {
     let ev = json!({"meta": meta, "content": content});
     let line = ev.to_string();
+    let quiet = ev["meta"]["kind"] == "message_delivered"; // for the pair pane only: no check_messages, no wake
     // Queue first: whoever reads the file and then calls check_messages must find it there.
-    {
+    if !quiet {
         let mut q = INBOX.lock().unwrap();
         if q.len() >= INBOX_MAX {
             q.remove(0);
@@ -272,7 +273,9 @@ fn push(meta: Value, content: &str) {
     if let Some(d) = SESSION_DIR.get().and_then(|d| d.as_deref()) {
         let _ = append_private(&d.join("inbox.jsonl"), &line);
     }
-    wake_codex();
+    if !quiet {
+        wake_codex();
+    }
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -687,14 +690,19 @@ fn is_probe(e: &Value) -> bool {
     e["meta"]["kind"] == "probe"
 }
 
-/// The pair pane's "hand messages to Claude automatically" option, off: the pane writes "off" to <session dir>/deliver
-/// every 10 s. The peer's messages and files then reach Claude only when the user hands them over; pairing events
-/// still do. A file older than 30 s counts as on: with the mod gone (switched off, blocked) nothing could show them.
+/// Events kept from Claude. message_delivered always: it is for the pair pane. Messages and files while the pane's
+/// "hand messages to Claude automatically" option is off: the pane writes "off" to <session dir>/deliver every 10 s,
+/// and they then reach Claude only when the user hands them over; pairing events still do. A file older than 30 s
+/// counts as on: with the mod gone (switched off, blocked) nothing could show them.
 fn held(dir: &Path, e: &Value) -> bool {
     let path = dir.join("deliver");
-    matches!(e["meta"]["kind"].as_str(), Some("message" | "file"))
-        && fresh_for(&path, WATCH_FRESH)
-        && std::fs::read_to_string(&path).is_ok_and(|s| s.trim() == "off")
+    match e["meta"]["kind"].as_str() {
+        Some("message_delivered") => true,
+        Some("message" | "file") => {
+            fresh_for(&path, WATCH_FRESH) && std::fs::read_to_string(&path).is_ok_and(|s| s.trim() == "off")
+        }
+        _ => false,
+    }
 }
 
 /// Hook input: the JSON Claude Code sends on stdin.
@@ -862,8 +870,11 @@ fn outbox(dir: PathBuf, st: St) {
                 format!("it must be 1..={MAX_TEXT} bytes")
             } else if phase != Phase::Paired {
                 "not paired".into()
-            } else if send(&st, json!({"t": "msg", "message": a2a_text(text)})) {
-                continue;
+            } else if send(
+                &st,
+                msg_record(l["id"].as_str().map(str::to_owned).unwrap_or_else(new_id), text),
+            ) {
+                continue; // the peer's msg_ok becomes a message_delivered event with this id, for the pane
             } else {
                 "not connected".into()
             };
@@ -992,9 +1003,27 @@ fn me(a: &Value) -> String {
     }
 }
 
-fn a2a_text(text: &str) -> Value {
-    let id = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-    json!({"kind": "message", "role": "agent", "messageId": format!("{id:x}"), "parts": [{"kind": "text", "text": text}]})
+fn new_id() -> String {
+    format!("{:x}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos())
+}
+
+/// A `msg` record. A peer that sent `acks` answers its `id` with msg_ok.
+fn msg_record(id: String, text: &str) -> Value {
+    json!({"t": "msg", "id": id, "message": {"kind": "message", "role": "agent", "messageId": new_id(),
+        "parts": [{"kind": "text", "text": text}]}})
+}
+
+/// The peer confirms each message with msg_ok (it sent `"acks": true`, pair 0.1.17+). Set on every pairing.
+static PEER_ACKS: AtomicBool = AtomicBool::new(false);
+/// The message send_to_peer is waiting on, and whether its msg_ok came. Under one lock with the session thread, so an
+/// ack is either handed over here or recorded as a message_delivered event, never lost between the two.
+static AWAITED: Mutex<Option<(String, bool)>> = Mutex::new(None);
+/// How long send_to_peer waits for msg_ok (it blocks the MCP loop meanwhile).
+const ACK_WAIT: Duration = Duration::from_secs(3);
+
+/// Whether we advertise and send acks. PAIR_TEST_OLD_PEER: the e2e plays a peer older than 0.1.17.
+fn acks() -> bool {
+    std::env::var_os("PAIR_TEST_OLD_PEER").is_none()
 }
 
 fn result_text(s: impl Into<String>, is_error: bool) -> Value {
@@ -1195,7 +1224,10 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
                 s.phase = Phase::Paired;
                 (s.me.clone(), s.peer.clone())
             };
-            send(st, json!({"t": "accept", "v": PROTO, "name": me, "resume": true}));
+            send(
+                st,
+                json!({"t": "accept", "v": PROTO, "name": me, "resume": true, "acks": acks()}),
+            );
             result_text(
                 format!("Paired with {peer}. Their messages will arrive by themselves; reply with send_to_peer."),
                 false,
@@ -1210,16 +1242,46 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
             if text.is_empty() || text.len() > MAX_TEXT {
                 return result_text(format!("`text` is required: the message, 1..={MAX_TEXT} bytes"), true);
             }
-            if send(st, json!({"t": "msg", "message": a2a_text(text)})) {
+            let id = new_id();
+            let wait = PEER_ACKS.load(Ordering::Relaxed) && !st.lock().unwrap().resuming;
+            if wait {
+                *AWAITED.lock().unwrap() = Some((id.clone(), false)); // before sending: the ack can be quick
+            }
+            if send(st, msg_record(id.clone(), text)) {
                 if st.lock().unwrap().resuming {
+                    AWAITED.lock().unwrap().take();
                     return result_text(
                         "queued: the connection dropped and pair is reconnecting; it goes out once it's back",
                         false,
                     );
                 }
-                // Handed to the connection, not confirmed by the peer (GitHub #9).
-                result_text(format!("queued for sending{}", listener_reminder()), false)
+                if !wait {
+                    // An older peer: handed to the connection, never confirmed (GitHub #9).
+                    return result_text(format!("queued for sending{}", listener_reminder()), false);
+                }
+                let t = Instant::now();
+                let delivered = loop {
+                    let mut a = AWAITED.lock().unwrap();
+                    if a.as_ref().is_some_and(|(_, ok)| *ok) || t.elapsed() >= ACK_WAIT {
+                        break a.take().is_some_and(|(_, ok)| ok);
+                    }
+                    drop(a);
+                    std::thread::sleep(Duration::from_millis(20));
+                };
+                if delivered {
+                    result_text(format!("delivered{}", listener_reminder()), false)
+                } else {
+                    // The id lets the pair pane mark it delivered when the msg_ok comes later.
+                    result_text(
+                        format!(
+                            "queued for sending (not confirmed yet; message id {id}){}",
+                            listener_reminder()
+                        ),
+                        false,
+                    )
+                }
             } else {
+                AWAITED.lock().unwrap().take();
                 result_text("not connected", true)
             }
         }
@@ -1251,7 +1313,7 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
                         Some(true) => {}
                     }
                 }
-                let id = format!("{:x}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
+                let id = new_id();
                 if send(st, json!({"t": "file_send", "id": id, "path": path, "name": name})) {
                     result_text(
                         format!(
@@ -1541,7 +1603,7 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
     let mut resume = false; // both sides can reconnect after a drop (pair 0.1.11+)
     if !initiator {
         if let Err(e) = w
-            .send_json(&json!({"t": "hello", "v": PROTO, "name": me, "resume": true}))
+            .send_json(&json!({"t": "hello", "v": PROTO, "name": me, "resume": true, "acks": acks()}))
             .await
         {
             return format!("connection lost: {e}");
@@ -1587,6 +1649,7 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
                         }
                         let peer = clean_name(m["name"].as_str().unwrap_or(""));
                         resume = m["resume"] == true;
+                        PEER_ACKS.store(m["acks"] == true, Ordering::Relaxed);
                         {
                             let mut s = st.lock().unwrap();
                             s.peer = peer.clone();
@@ -1617,6 +1680,7 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
                         }
                         st.lock().unwrap().peer = clean_name(m["name"].as_str().unwrap_or(""));
                         resume = m["resume"] == true;
+                        PEER_ACKS.store(m["acks"] == true, Ordering::Relaxed);
                         break;
                     }
                     ("reject", false, _) => return "the other side declined".into(),
@@ -1844,6 +1908,30 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
                                 json!({"kind": "message", "peer": peer, "trust": trust, "via": via}),
                                 &clean_text(&text),
                             );
+                            if let Some(id) = m["id"].as_str().filter(|_| acks()) {
+                                let ok = json!({"t": "msg_ok", "id": id})
+                                    .to_string()
+                                    .into_bytes()
+                                    .into_boxed_slice();
+                                let _ = sink.send(ok).await;
+                            }
+                        }
+                        "msg_ok" => {
+                            let id: String = m["id"]
+                                .as_str()
+                                .unwrap_or("")
+                                .chars()
+                                .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+                                .take(64)
+                                .collect();
+                            let mut a = AWAITED.lock().unwrap();
+                            match a.as_mut() {
+                                Some((waiting, ok)) if *waiting == id => *ok = true,
+                                _ => push(
+                                    json!({"kind": "message_delivered", "peer": peer, "id": id}),
+                                    &format!("{peer} received your message."),
+                                ),
+                            }
                         }
                         _ => {} // ping and anything unknown
                     }
@@ -2154,6 +2242,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let ev = |kind: &str| json!({"meta": {"kind": kind}, "content": ""});
         assert!(!held(&dir, &ev("message")), "no file: delivered (the default)");
+        assert!(held(&dir, &ev("message_delivered")), "for the pane only, always");
         std::fs::write(dir.join("deliver"), "off\n").unwrap();
         assert!(held(&dir, &ev("message")) && held(&dir, &ev("file")));
         assert!(!held(&dir, &ev("pair_request")) && !held(&dir, &ev("unpaired")));

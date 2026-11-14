@@ -30,15 +30,20 @@ Both sides must use the same mailbox. Only `ws://` and `tcp://` work for now; `w
 
 | `t` | Sent by | Fields | Meaning |
 |---|---|---|---|
-| `hello` | joiner, first | `v` (2), `name`, `resume` (true, 0.1.11+) | Mailbox only. Asks to pair. The initiator's owner approves or rejects. |
-| `accept` | initiator | `v` (2), `name`, `resume` (true, 0.1.11+) | Mailbox only. Approved. Both sides are now paired. |
+| `hello` | joiner, first | `v` (2), `name`, `resume` (true, 0.1.11+), `acks` (true, 0.1.17+) | Mailbox only. Asks to pair. The initiator's owner approves or rejects. |
+| `accept` | initiator | `v` (2), `name`, `resume` (true, 0.1.11+), `acks` (true, 0.1.17+) | Mailbox only. Approved. Both sides are now paired. |
 | `reject` | initiator | | Mailbox only. Declined (or the joiner is on v1). The joiner closes. |
 | `transit` | both, after `accept` | `hints` | Mailbox only. Direct-connection hints. Relay hints from the peer are ignored: each side uses only its own configured transit relay. |
-| `msg` | either | `message`: an [A2A](https://a2a-protocol.org/) Message, `{"kind": "message", "role": "agent", "messageId", "parts": [{"kind": "text", "text"}]}` | Text for the other agent. Max 16 KiB of text. |
+| `msg` | either | `id` (0.1.17+; letters, digits and `-`, up to 64), `message`: an [A2A](https://a2a-protocol.org/) Message, `{"kind": "message", "role": "agent", "messageId", "parts": [{"kind": "text", "text"}]}` | Text for the other agent. Max 16 KiB of text. |
+| `msg_ok` | receiver | `id` | The `msg` with this `id` arrived. Sent only by a side that advertised `acks`, for a `msg` that has an `id`. |
 | `file` | either | `id`, `name`, `size`, `sha256` (hex), `seq` (0-based), `last` (bool), `data` (base64 chunk) | One chunk (64 KiB) of a file. Chunks of one `id` arrive in `seq` order. Max 100 MiB per file over a direct connection, 25 MiB through a relay; 4 at once. Streamed: the receiver writes chunks to a temp file and checks size and sha256 at the end. |
 | `file_ok` | receiver | `name` | The whole file arrived and matched `size` and `sha256`. |
 | `ping` | either | | Heartbeat: every 30 s when both sides sent `resume`, otherwise every 4 minutes. Keeps NAT and transit-relay paths open; ignored on receipt. With `resume`, a peer silent for 95 s counts as dropped. Any record the connection doesn't accept within 30 s counts as dropped. |
 | `bye` | either | | Unpair. Both sides close. Also sent when the Claude Code session closes. |
+
+A side that sent `acks: true` answers every `msg` carrying an `id` with `msg_ok` once it has it. The sender claims
+delivery only if the peer advertised `acks`; to an older peer, a message is only ever "queued for sending". New fields
+and record types are capabilities like these, never a protocol version bump: older peers ignore what they don't know.
 
 On the mailbox, before `accept`, everything except `hello` / `accept` / `reject` / `bye` is dropped.
 

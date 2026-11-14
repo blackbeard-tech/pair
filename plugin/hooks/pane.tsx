@@ -241,11 +241,13 @@ async function pollOnce($: EngineInterface) {
   const now = await $.clock.now()
   const fresh: (PairEvent & { identity?: string })[] = []
   const delivered: string[] = []
+  const confirmed: string[] = [] // message ids the peer's pair received (late msg_ok)
   lines.slice(from).forEach((line, i) => {
     try {
       const ev = JSON.parse(line)
       const m = ev.meta ?? {}
       if (m.kind === 'probe') return
+      if (m.kind === 'message_delivered') return void confirmed.push(String(m.id ?? ''))
       const content = String(ev.content ?? '')
       if (m.kind === 'file_delivered') delivered.push(content.match(/received "(.+)"\.$/)?.[1] ?? '')
       fresh.push({
@@ -271,6 +273,10 @@ async function pollOnce($: EngineInterface) {
     for (const name of delivered) {
       const f = out.find(m => m.kind === 'sent-file' && m.name === name && !m.delivered)
       if (f) out[out.indexOf(f)] = { ...f, delivered: true }
+    }
+    for (const id of confirmed) {
+      const i = out.findIndex(m => m.id === `out-${id}` || m.id === `claude-${id}`)
+      if (i >= 0) out[i] = { ...out[i]!, delivered: true }
     }
     const rows = fresh.filter(m => m.kind !== 'file_delivered').map(({ identity: _, ...m }) => m)
     return [...out, ...rows].slice(-200)
@@ -376,7 +382,13 @@ export const register: Register = (on, options) => {
     const r = await next(e)
     const text = String((e as { text?: unknown }).text ?? '')
     if (!r.deny && !r.isError && text) {
-      await addRows($, [{ id: `claude-${e.tool_use_id}`, kind: 'claude', peer: '', text, at: await $.clock.now() }])
+      // "delivered", or "queued for sending (not confirmed yet; message id X)" whose message_delivered comes later.
+      const said = r.text ?? ''
+      const id = said.match(/message id ([\w-]+)/)?.[1] ?? e.tool_use_id
+      await addRows($, [
+        { id: `claude-${id}`, kind: 'claude', peer: '', text, at: await $.clock.now(),
+          ...(said.startsWith('delivered') ? { delivered: true } : {}) },
+      ])
     }
     return r
   }).catch(($, e, next) => next(e))
@@ -583,6 +595,7 @@ export const register: Register = (on, options) => {
               {who(m)}
             </Text>
             {fresh && <Text color={SOON}> new</Text>}
+            {m.delivered && <Text color={ACCENT}> delivered</Text>}
           </Text>
           {m.kind === 'file' ? (
             <Text>

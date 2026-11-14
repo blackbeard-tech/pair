@@ -64,6 +64,7 @@ class Peer:
 
         A `connection` notice is skipped unless asked for: magic-wormhole 0.8.1 can panic while a connection is set
         up ("socket must be IP"), and pair then retries on the reconnect codes, which takes up to a minute.
+        So is `message_delivered` (a late msg_ok, for the pair pane), whose timing varies.
         """
         end = time.time() + timeout
         while time.time() < end:
@@ -79,6 +80,8 @@ class Peer:
                 print(f"  {self.label} <- {e['meta']}: {e['content'][:80]!r}")
                 if e["meta"]["kind"] == "connection" and kind != "connection":
                     end = max(end, time.time() + 90)  # a retry: give it time
+                    continue
+                if e["meta"]["kind"] == "message_delivered" and kind != "message_delivered":
                     continue
                 assert e["meta"]["kind"] == kind, e
                 return e
@@ -108,7 +111,8 @@ IDLE = int(__import__("os").environ.get("PAIR_E2E_IDLE", "0"))  # e.g. 1200 to p
 if IDLE:
     print(f"  idling {IDLE}s")
     __import__("time").sleep(IDLE)
-assert not b.tool("send_to_peer", text="hello from bob\u202e")[1]
+text, err = b.tool("send_to_peer", text="hello from bob\u202e")
+assert not err and text.startswith("delivered\n"), text  # a new peer confirms with msg_ok (GitHub #9)
 msg = a.event("message")
 assert msg["content"] == "hello from bob" and msg["meta"]["trust"] == "read-only", msg
 inbox = a.tool("check_messages")[0]  # claude -p fallback: same events, queued
@@ -123,6 +127,8 @@ with open(ob, "a") as f:
     f.write(json.dumps({"id": "p0", "text": "from the pane"}) + "\n")
 msg = b.event("message")
 assert msg["content"] == "from the pane", msg
+assert a.event("message_delivered")["meta"]["id"] == "p0"  # the pane marks its row delivered
+assert "message_delivered" not in a.tool("check_messages")[0]
 # A mod can only rewrite the whole file; a rewrite caught half-way (empty file) must not resend earlier lines.
 old = open(ob).read()
 open(ob, "w").close()
@@ -294,6 +300,9 @@ print("  watch <-", line[:90])
 assert line.startswith('pair pair_request from "Hal": '), line
 assert not g.tool("pair_accept")[1]
 h.event("paired")
+with open(os.path.join(sdir, "outbox.jsonl"), "a") as f:  # its msg_ok lands in G's inbox: not for Claude
+    f.write(json.dumps({"id": "g0", "text": "from G's pane"}) + "\n")
+h.event("message")
 assert not h.tool("send_to_peer", text="line1\nline2")[1]
 line = wq.get(timeout=30)
 print("  watch <-", line)
@@ -312,7 +321,8 @@ assert not os.path.exists(sdir), "session dir not removed at session end"
 # exits with the next event(s); nothing sent while no wait is running is lost.
 import re, shlex
 kenv = dict(os.environ, PAIR_DATA=tempfile.mkdtemp(), CLAUDE_CODE_SESSION_ID="test-session-k")
-k, l = Peer("K", env=kenv), Peer("L")
+k, l = Peer("K", env=kenv), Peer("L", env=dict(os.environ, PAIR_DATA=tempfile.mkdtemp(),
+                                                 CLAUDE_CODE_SESSION_ID="test-L", PAIR_TEST_OLD_PEER="1"))
 text = k.tool("pair_start", name="Kim")[0]
 assert "Live delivery: NOT set up" in text, text
 cmd = shlex.split(re.search(r'(".+?" wait ".+?")', text).group(1))
@@ -333,7 +343,7 @@ time.sleep(3)  # both land while no wait is running
 out = wait_once()
 assert [o.rsplit(": ", 1)[1] for o in out] == ['"one"', '"two"'], out
 text, err = k.tool("send_to_peer", text="hi")
-assert not err and "Nothing is listening" in text, text
+assert not err and text.startswith("queued for sending\n") and "Nothing is listening" in text, text  # L is older
 assert l.event("message")["content"] == "hi"
 k.tool("unpair")
 l.event("unpaired")
@@ -388,6 +398,11 @@ assert wakes.empty(), "hook must stay silent while the monitor delivers"
 os.remove(os.path.join(sdir, "watch.alive"))
 n.tool("send_to_peer", text="three")
 assert wakes.get(timeout=30) == ['pair message from "Ned" (trust: read-only): "three"'], "no re-delivery of two"
+with open(os.path.join(sdir, "outbox.jsonl"), "a") as f:  # its msg_ok lands in M's inbox: no wake
+    f.write(json.dumps({"id": "m0", "text": "from M's pane"}) + "\n")
+n.event("message")
+n.tool("send_to_peer", text="four")
+assert wakes.get(timeout=30) == ['pair message from "Ned" (trust: read-only): "four"']
 assert fire(os.path.join(tempfile.mkdtemp(), "inbox.jsonl"))[0] == 0  # a project-folder inbox.jsonl is ignored
 m.tool("unpair")
 n.event("unpaired")
@@ -433,6 +448,7 @@ if os.name != "nt":
     assert "Reconnected" in s.event("connection", timeout=40)["content"]
     assert "Reconnected" in r.event("connection", timeout=40)["content"]
     assert s.event("message")["content"] == "while you were away"
+    assert r.event("message_delivered")["meta"]["id"]  # confirmed after send_to_peer returned
     assert not s.tool("send_to_peer", text="back")[1]
     assert r.event("message")["content"] == "back"
     # Claude Code closing a session says bye, so the peer ends at once instead of trying to reconnect.

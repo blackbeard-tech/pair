@@ -36,6 +36,7 @@ function world(on: On) {
     opened: 0,
     isUp: true, // pair has made this session's folder
     isPlaced: true, // a surface places the pane when opened
+    toolText: undefined as string | undefined, // what the model reads from a tool call
   }
   mock.env(on, { HOME: '/home/u' })
   const clock = mock.clock(on, { now: Date.UTC(2026, 10, 14, 14, 2) })
@@ -71,7 +72,7 @@ function world(on: On) {
     w.prompts.push(e.text)
     return { text: e.text }
   })
-  on('tool.call', () => ({ result: {} }))
+  on('tool.call', () => ({ result: {}, ...(w.toolText === undefined ? {} : { text: w.toolText }) }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   return { w, clock, inbox: (s: string) => (files[`${DIR}/inbox.jsonl`] += s) }
 }
@@ -132,6 +133,25 @@ test("Claude's own messages and files show as yours", async ($, on) => {
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /^your Claude$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^patch incoming$/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('messages the peer confirmed show delivered, matched by id', async ($, on) => {
+  const { w, clock, inbox } = world(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  inbox(line('paired', 'Ann accepted.'))
+  await clock.advance(1000)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.input({ key: 'chat', text: 'from me' })
+  const id = JSON.parse(w.files[`${DIR}/outbox.jsonl`]!.trim()).id
+  w.toolText = 'queued for sending (not confirmed yet; message id 18a2f-c)'
+  await $.tool.call({ tool: 'mcp__plugin_pair_pair__send_to_peer', text: 'from Claude' })
+  expect(await ui.find({ type: 'Text', text: /^ delivered$/ })).toBeUndefined()
+  inbox(line('message_delivered', 'Ann received your message.', { id }))
+  inbox(line('message_delivered', 'Ann received your message.', { id: '18a2f-c' }))
+  await clock.advance(1000)
+  expect(await ui.findAll({ type: 'Text', text: /^ delivered$/ })).toHaveLength(2)
+  expect(await ui.find({ type: 'Text', text: /received your message/ })).toBeUndefined() // no row of its own
   await ui.unmount()
 })
 

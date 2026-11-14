@@ -17,7 +17,7 @@ export type PairEvent = {
   name?: string
   size?: number
   path?: string
-  /** A sent file the peer confirmed. */
+  /** A file or message you or your Claude sent that the peer's pair confirmed. */
   delivered?: boolean
   /** When you handed it to Claude, ms. */
   handedAt?: number

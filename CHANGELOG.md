@@ -15,7 +15,11 @@ separately; each early entry names the plugin versions that used that binary.
 - pair now says `/pair <code>` instead of `/pair:pair <code>`: Claude Code runs the plugin's skill as `/pair` unless
   another command is also named `pair`, in which case `/pair:pair` still works. (GitHub #24)
 - Pairing codes still expire after 2 minutes, but you can ask for up to 5 (for example "/pair, code valid for 5
-  minutes"): `pair_start` takes `expires_in_minutes` (1 to 5) and refuses other values. (pair-qb1)
+  minutes"): `pair_start` takes `expires_in_minutes` (1 to 5) and refuses other values.
+- Delivery confirmation for messages: when the other side runs this version or later, `send_to_peer` waits up to 3 s
+  and says "delivered" once their pair has the message, or "not confirmed yet". A later confirmation marks the
+  message delivered in the pair pane, for messages you send there and your Claude's, without telling Claude. With an
+  older peer nothing changes. (GitHub #9)
 
 ## 0.1.16 (2026-11-14)
 
