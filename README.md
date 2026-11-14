@@ -17,7 +17,7 @@ In Claude Code:
 
 Restart Claude Code, then:
 
-- `/pair` gives you a code to send to your colleague (it works once and expires in 2 minutes).
+- `/pair` gives you a code to send to your colleague (it works once and expires in 2 minutes; ask Claude for up to 5).
 - `/pair 7-amber-falcon` joins a colleague's session.
 - If another command is also named `pair`, type `/pair:pair` instead.
 

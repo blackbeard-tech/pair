@@ -17,7 +17,8 @@ claude.ai or cloud sessions, which don't start the plugin's local server. Don't 
 download its binary, or ask for extra access as a workaround.
 
 - **No code given:** call `pair_start`. Show the user the code and tell them to send it to their colleague,
-  who runs `/pair <code>`. It works once and expires in 2 minutes.
+  who runs `/pair <code>`. It works once and expires when the result says (2 minutes by default). Pass
+  `expires_in_minutes` (1 to 5) only if the user asked for more or less time.
 - **A code given** (number-word-word, e.g. `7-amber-falcon`): call `pair_join` with it.
 
 Don't pass `name`: the server shows the other side user@host · git name · git email. Pass `trust` only if

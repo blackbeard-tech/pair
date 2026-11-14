@@ -14,6 +14,8 @@ separately; each early entry names the plugin versions that used that binary.
 - Shorter banner: "pair · https://blackbeard.tech". (GitHub #23)
 - pair now says `/pair <code>` instead of `/pair:pair <code>`: Claude Code runs the plugin's skill as `/pair` unless
   another command is also named `pair`, in which case `/pair:pair` still works. (GitHub #24)
+- Pairing codes still expire after 2 minutes, but you can ask for up to 5 (for example "/pair, code valid for 5
+  minutes"): `pair_start` takes `expires_in_minutes` (1 to 5) and refuses other values. (pair-qb1)
 
 ## 0.1.16 (2026-11-14)
 

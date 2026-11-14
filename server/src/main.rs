@@ -21,7 +21,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 /// Relay namespace (not a URL). Both peers must match, so changing it breaks pairing with older releases.
 const APP_ID: &str = "blackbeard.tech/pair/v1";
 const RELAY: &str = "ws://relay.magic-wormhole.io:4000/v1";
-const CODE_TTL: Duration = Duration::from_secs(120);
+/// Code lifetime in minutes: the default, and the most pair_start's expires_in_minutes allows.
+const CODE_TTL_MIN: u64 = 2;
+const MAX_TTL_MIN: u64 = 5;
 /// Text per message (kept from when messages went through the relay mailbox, where big frames hung).
 const MAX_TEXT: usize = 16 * 1024;
 /// A send the connection hasn't accepted in this long ends the pairing instead of hanging.
@@ -1008,8 +1010,10 @@ fn tools() -> Value {
     // "don't ask again": the dialog is the user's consent, independent of the plugin's hooks.
     let consent = json!({"anthropic/requiresUserInteraction": true});
     json!([
-        {"name": "pair_start", "description": "Start pairing: returns a one-time code (valid 2 minutes, single use) for your user to share with a colleague.",
-         "inputSchema": {"type": "object", "properties": {"name": name, "trust": trust}}},
+        {"name": "pair_start", "description": "Start pairing: returns a one-time code (single use, valid 2 minutes unless expires_in_minutes says otherwise) for your user to share with a colleague.",
+         "inputSchema": {"type": "object", "properties": {"name": name, "trust": trust,
+            "expires_in_minutes": {"type": "integer", "minimum": 1, "maximum": MAX_TTL_MIN,
+                "description": "How long the code stays valid: 1 to 5 minutes, default 2. Pass it only if your user asked for a different time."}}}},
         {"name": "pair_join", "description": "Join a colleague's session using the code they shared, e.g. 7-amber-falcon.",
          "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, "name": name, "trust": trust}, "required": ["code"]}},
         {"name": "pair_accept", "description": "Accept a pending pair_request, following the pair_request event's instructions: either Claude Code's own confirmation dialog confirms it, or you ask your user first.",
@@ -1103,6 +1107,18 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
     };
     match (tool, phase) {
         ("pair_start", Phase::Idle) => {
+            let ttl = match &a["expires_in_minutes"] {
+                Value::Null => CODE_TTL_MIN,
+                v => match v.as_u64().filter(|m| (1..=MAX_TTL_MIN).contains(m)) {
+                    Some(m) => m,
+                    None => {
+                        return result_text(
+                            format!("expires_in_minutes must be a whole number from 1 to {MAX_TTL_MIN}."),
+                            true,
+                        );
+                    }
+                },
+            };
             let me = me(a);
             let m = match async_io::block_on(MailboxConnection::create(cfg(&me), 2)) {
                 Ok(m) => m,
@@ -1110,11 +1126,12 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
             };
             let code = m.code().to_string();
             let notice = relay_notice(m.welcome());
-            start(st, Side::Initiator(Box::new(m)), me, trust);
+            start(st, Side::Initiator(Box::new(m)), me, trust, ttl);
             result_text(
                 format!(
                     "{BANNER}\nPairing code: {code}\nAsk your user to share it with their colleague, who enters it with /pair {code}. \
-                It works once and expires in 2 minutes. Trust level: {trust}. When they connect you will get a pair_request event: follow its instructions (never accept without your user's yes).\n{}{notice}",
+                It works once and expires in {}. Trust level: {trust}. When they connect you will get a pair_request event: follow its instructions (never accept without your user's yes).\n{}{notice}",
+                    minutes(ttl),
                     delivery_note()
                 ),
                 false,
@@ -1134,7 +1151,7 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
                 Err(e) => return result_text(format!("Could not reach the pairing relay: {}", chain(&e)), true),
             };
             let notice = relay_notice(m.welcome());
-            start(st, Side::Joiner(Box::new(m)), me, trust);
+            start(st, Side::Joiner(Box::new(m)), me, trust, CODE_TTL_MIN);
             result_text(
                 format!(
                     "{BANNER}\nConnecting (trust: {trust}). You'll get an event when the other side approves or declines.\n{}{notice}",
@@ -1269,7 +1286,15 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
     }
 }
 
-fn start(st: &St, side: Side, me: String, trust: &'static str) {
+fn minutes(m: u64) -> String {
+    if m == 1 {
+        "1 minute".into()
+    } else {
+        format!("{m} minutes")
+    }
+}
+
+fn start(st: &St, side: Side, me: String, trust: &'static str, ttl: u64) {
     let (tx, rx) = async_channel::unbounded();
     {
         let mut s = st.lock().unwrap();
@@ -1288,7 +1313,7 @@ fn start(st: &St, side: Side, me: String, trust: &'static str) {
     std::thread::spawn(move || {
         // magic-wormhole 0.8.1 panics (todo!, expect) on a malformed peer phase or a socket that closes mid-setup;
         // contain it to this pairing.
-        let reason = catch_unwind(AssertUnwindSafe(|| async_io::block_on(session(&st, side, me, rx))))
+        let reason = catch_unwind(AssertUnwindSafe(|| async_io::block_on(session(&st, side, me, rx, ttl))))
             .unwrap_or_else(|p| format!("pair hit an internal error ({}); pair again", panic_text(&*p)));
         let peer = {
             let mut s = st.lock().unwrap();
@@ -1481,7 +1506,7 @@ fn panic_text(p: &(dyn std::any::Any + Send)) -> String {
         .unwrap_or_else(|| "unknown".into())
 }
 
-async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Value>) -> String {
+async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Value>, ttl: u64) -> String {
     let initiator = matches!(side, Side::Initiator(_));
     let connect = async {
         let r: Result<Wormhole, magic_wormhole::WormholeError> = async {
@@ -1498,8 +1523,8 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
         })
     };
     let expire = async {
-        async_io::Timer::after(CODE_TTL).await;
-        Err("the code expired after 2 minutes".to_string())
+        async_io::Timer::after(Duration::from_secs(ttl * 60)).await;
+        Err(format!("the code expired after {}", minutes(ttl)))
     };
     // In Waiting, unpair's bye is the only thing our side can send. Ending here drops the connect, as expiry does.
     let cancel = async {

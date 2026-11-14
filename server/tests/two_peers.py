@@ -214,6 +214,14 @@ dt.tool("unpair")
 assert "Trust level: read-only" in dt.tool("pair_start", trust="read-only")[0]
 dt.tool("unpair")
 
+# Code expiry: 2 minutes by default; pair_start's expires_in_minutes allows 1 to 5.
+assert "expires in 2 minutes" in dt.tool("pair_start")[0]
+dt.tool("unpair")
+assert "expires in 3 minutes" in dt.tool("pair_start", expires_in_minutes=3)[0]
+dt.tool("unpair")
+text, err = dt.tool("pair_start", expires_in_minutes=9)
+assert err and "1 to 5" in text, text
+
 # Codex: no hooks or monitor, so pair runs `codex queue` to wake the chat that started the pairing. Fixed text,
 # never peer content, once until check_messages. A fake codex records its arguments. (GitHub #6)
 if os.name != "nt":

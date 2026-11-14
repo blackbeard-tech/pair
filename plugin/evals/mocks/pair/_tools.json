@@ -1,9 +1,15 @@
 {
   "tools": [
     {
-      "description": "Start pairing: returns a one-time code (valid 2 minutes, single use) for your user to share with a colleague.",
+      "description": "Start pairing: returns a one-time code (single use, valid 2 minutes unless expires_in_minutes says otherwise) for your user to share with a colleague.",
       "inputSchema": {
         "properties": {
+          "expires_in_minutes": {
+            "description": "How long the code stays valid: 1 to 5 minutes, default 2. Pass it only if your user asked for a different time.",
+            "maximum": 5,
+            "minimum": 1,
+            "type": "integer"
+          },
           "name": {
             "description": "Optional override for how you appear to the other side. Leave unset: the default is user@host · git name · git email.",
             "type": "string"

@@ -20,7 +20,7 @@ Then restart Claude Code.
 
 ## Use
 
-- `/pair` gives you a code to share (it works once and expires in 2 minutes).
+- `/pair` gives you a code to share (it works once and expires in 2 minutes; ask Claude for up to 5).
 - `/pair <code>` joins a colleague's session. The other side approves before anything is exchanged.
 - If another command is also named `pair`, type `/pair:pair` instead.
 - Pick a trust level when pairing: `read-only` (default), `ask` or `normal`. It tells Claude how far to go on the
