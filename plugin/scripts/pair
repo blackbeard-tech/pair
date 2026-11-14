@@ -34,7 +34,8 @@ if [ ! -x "$bin" ]; then
     curl -fsSL "https://github.com/$REPO/releases/download/v$VERSION/$asset" -o "$tmp" \
       || { rm -f "$tmp"; echo "pair: could not download $asset v$VERSION" >&2; exit 1; }
   fi
-  got=$( (sha256sum "$tmp" 2>/dev/null || shasum -a 256 "$tmp") | cut -d' ' -f1)
+  # Hash stdin: given a path with a backslash (Git Bash, PAIR_DATA=C:\...), sha256sum prefixes its output with "\".
+  got=$( (sha256sum 2>/dev/null || shasum -a 256) < "$tmp" | cut -d' ' -f1)
   if [ "$got" != "$want" ]; then rm -f "$tmp"; echo "pair: checksum mismatch for $asset; refusing to run" >&2; exit 1; fi
   chmod +x "$tmp"
   # Atomic; if the other launcher got there first (and Windows locks the running exe), use its verified copy.

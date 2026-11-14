@@ -20,6 +20,9 @@ separately; each early entry names the plugin versions that used that binary.
   and says "delivered" once their pair has the message, or "not confirmed yet". A later confirmation marks the
   message delivered in the pair pane, for messages you send there and your Claude's, without telling Claude. With an
   older peer nothing changes. (GitHub #9)
+- Windows with Git Bash: the first download of the pair binary by a hook or the monitor could fail with "checksum
+  mismatch" when the plugin data folder was a `C:\...` path, so live delivery didn't start in that session. The
+  launcher now checks the download correctly.
 
 ## 0.1.16 (2026-11-14)
 
