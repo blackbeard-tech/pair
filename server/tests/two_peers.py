@@ -60,7 +60,11 @@ class Peer:
         return r["content"][0]["text"], r["isError"]
 
     def event(self, kind, timeout=30):
-        """The next event in this peer's inbox (skipping the hook probe); it must be `kind`."""
+        """The next event in this peer's inbox (skipping the hook probe); it must be `kind`.
+
+        A `connection` notice is skipped unless asked for: magic-wormhole 0.8.1 can panic while a connection is set
+        up ("socket must be IP"), and pair then retries on the reconnect codes, which takes up to a minute.
+        """
         end = time.time() + timeout
         while time.time() < end:
             try:
@@ -73,6 +77,9 @@ class Peer:
                 if e["meta"]["kind"] == "probe":
                     continue
                 print(f"  {self.label} <- {e['meta']}: {e['content'][:80]!r}")
+                if e["meta"]["kind"] == "connection" and kind != "connection":
+                    end = max(end, time.time() + 90)  # a retry: give it time
+                    continue
                 assert e["meta"]["kind"] == kind, e
                 return e
             time.sleep(0.1)
