@@ -21,8 +21,8 @@ download its binary, or ask for extra access as a workaround.
 - **A code given** (number-word-word, e.g. `7-amber-falcon`): call `pair_join` with it.
 
 Don't pass `name`: the server shows the other side user@host · git name · git email. Pass `trust` only if
-the user gave one; the default
-is read-only (for peer requests, answer and read; ask the user before anything else).
+the user gave one; otherwise their Default trust level setting applies, read-only unless they changed it (for peer
+requests, answer and read; ask the user before anything else).
 
 Events (pair requests, replies, unpairs) arrive by themselves, as monitor events or hook notices starting
 `pair <kind> from`. Don't poll after starting, joining or

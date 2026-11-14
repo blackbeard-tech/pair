@@ -67,7 +67,7 @@ other agent tools (P3) and remembered peers are out of scope.
 
 1. The public relay's metadata exposure is acceptable for the pilot.
 2. No outbound content filter in the pilot (T5); revisit for a paid tier.
-3. Default trust level is read-only.
+3. Default trust level is read-only. (Since 0.1.16 each user can change their own default with the plugin's Default trust level option; it is theirs to set, never the peer's, and Claude is told to name a level only when the user did.)
 
 ## Owner decisions (2026-11-08)
 

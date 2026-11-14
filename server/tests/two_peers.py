@@ -200,6 +200,13 @@ assert "not paired" in w.event("outbox_failed")["content"]
 assert not w.tool("pair_start")[1], "pair_start right after unpair must work"
 w.tool("unpair")
 
+# The plugin's Default trust level setting reaches the server as PAIR_DEFAULT_TRUST; a trust the call names wins.
+dt = Peer("DT", env=dict(os.environ, PAIR_DATA=tempfile.mkdtemp(), CLAUDE_CODE_SESSION_ID="test-DT", PAIR_DEFAULT_TRUST="ask"))
+assert "Trust level: ask" in dt.tool("pair_start")[0]
+dt.tool("unpair")
+assert "Trust level: read-only" in dt.tool("pair_start", trust="read-only")[0]
+dt.tool("unpair")
+
 # Codex: no hooks or monitor, so pair runs `codex queue` to wake the chat that started the pairing. Fixed text,
 # never peer content, once until check_messages. A fake codex records its arguments. (GitHub #6)
 if os.name != "nt":

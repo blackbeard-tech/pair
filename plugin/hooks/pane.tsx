@@ -199,6 +199,7 @@ let polling = false // a slow read must not overlap the next tick: both would ad
 // The "Hand messages to Claude automatically" option (userConfig hand_to_claude, default on). The server reads it from
 // <session dir>/deliver, and counts a file older than 30 s as on, so it is rewritten every 10 s while the mod runs.
 let handToClaudeAuto = true
+let defaultTrust = 'read-only' // userConfig default_trust: what pair_start/pair_join use when the call names none
 let deliverWrittenAt = 0
 
 async function poll($: EngineInterface) {
@@ -314,6 +315,17 @@ const firstText = (r: { content: { type: string; text?: string }[] }) =>
 
 export const register: Register = (on, options) => {
   handToClaudeAuto = options.hand_to_claude !== false
+  defaultTrust = String(options.default_trust ?? 'read-only')
+
+  // The trust level a pairing starts with: the call's own, else the setting.
+  for (const tool of ['mcp__plugin_pair_pair__pair_start', 'mcp__plugin_pair_pair__pair_join'] as const) {
+    on('tool.call', { tool }, async ($, e, next) => {
+      const r = await next(e)
+      const trust = String((e as { trust?: unknown }).trust ?? defaultTrust)
+      if (!r.deny && !r.isError) await update($, status, (s): PairStatus => ({ ...s, trust }))
+      return r
+    }).catch(($, e, next) => next(e))
+  }
   deliverWrittenAt = 0 // a reload (also a change of the option) writes it again at once
 
   on('session.start', async ($, e, next) => {
@@ -430,7 +442,7 @@ export const register: Register = (on, options) => {
           {dot} <Text bold>{peer}</Text>
           {host && <Text dimColor> · {host}</Text>}
           <Text dimColor> · trust: </Text>
-          {s.trust ?? 'read-only'}
+          {s.trust ?? defaultTrust}
           {s.phase === 'reconnecting' && <Text color={SOON}> · reconnecting</Text>}
           {s.via && s.phase === 'paired' && <Text dimColor> · {s.via}</Text>}
         </Text>

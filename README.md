@@ -116,10 +116,11 @@ traffic and can't read messages or files.
   pairing, and everything is end-to-end encrypted ([magic-wormhole](https://magic-wormhole.readthedocs.io/): SPAKE2 key exchange).
 - **You approve every pairing.** The request shows who is joining: `user@host · git name · git email`.
 - **Peer messages are requests, not instructions.** Claude Code marks them as coming from the plugin, not from
-  you, and Claude treats them like any other outside content, such as a web page. You choose a trust level when
-  pairing that tells Claude how far to go on a peer's request: `read-only` (default: answer and read files, ask you
-  before anything else), `ask` (ask you before any action a peer asks for) or `normal` (Claude's usual judgement).
-  Your own requests run with your usual permissions.
+  you, and Claude treats them like any other outside content, such as a web page. A trust level tells Claude how far
+  to go on a peer's request: `read-only` (answer and read files, ask you before anything else), `ask` (ask you before
+  any action a peer asks for) or `normal` (Claude's usual judgement). Name one when you pair (`/pair:pair ask`), or
+  set **Default trust level** in `/plugin` → pair → options; it starts at `read-only`. Your own requests run with
+  your usual permissions.
 - **Approvals stay with you.** A peer can never approve tool use in your session.
 - **Files:** every file you send needs your OK in Claude Code's own confirmation dialog (Claude can't answer it for
   you, and auto mode doesn't skip it), and secret-looking files (`.ssh`, `.env`, keys) are refused.
