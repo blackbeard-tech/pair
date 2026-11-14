@@ -6,7 +6,7 @@ What changed in each release of pair, newest first. Install or update in Claude 
 From 0.1.6 the plugin and its binary always share one version number. Before that they were numbered
 separately; each early entry names the plugin versions that used that binary.
 
-## Unreleased
+## 0.1.14 (2026-11-14)
 
 - `unpair` now cancels a pairing that is still waiting for the other side. Before, it said "Unpaired." but the code
   stayed live until it expired, and `pair_start` / `pair_join` failed with `state: Waiting` for up to 2 minutes.
@@ -25,6 +25,10 @@ separately; each early entry names the plugin versions that used that binary.
   `check_messages`. The notice never contains the other person's text. (GitHub #6)
 - `check_messages` right after a monitor or hook event could miss that event; events are now queued before they're
   written to the inbox file.
+- A pairing no longer ends when the connection can't be opened, or the connection library hits an internal error
+  mid-setup, right after you approve: like a dropped connection, it retries by itself for up to 10 minutes and both
+  of you are told. A reconnect survives that error too. It is reported as pair's own ("pair hit an internal
+  error"), no longer as "the peer sent malformed data". (GitHub #26)
 
 ## 0.1.13 (2026-11-08)
 
