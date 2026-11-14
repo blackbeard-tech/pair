@@ -331,7 +331,11 @@ k.tool("unpair")
 l.event("unpaired")
 
 # Plugin hooks (desktop app / IDEs): emulate Claude Code. SessionStart names the inbox to watch; on each
-# change, FileChanged runs `pair hook inbox`, and exit code 2 wakes Claude with its stderr.
+# change, FileChanged runs `pair hook inbox`, and exit code 2 wakes Claude with its stderr. The hook's
+# rewakeMessage / rewakeSummary label that wake; without them it shows as "Stop hook blocking error" (GitHub #5).
+hooks_json = os.path.join(os.path.dirname(__file__), "..", "..", "plugin", "hooks", "hooks.json")
+inbox_hook = json.load(open(hooks_json))["hooks"]["FileChanged"][0]["hooks"][0]
+assert inbox_hook["asyncRewake"] and inbox_hook["rewakeMessage"] and inbox_hook["rewakeSummary"], inbox_hook
 hdata, hsid = tempfile.mkdtemp(), "test-session-hooks"
 out = subprocess.run([BIN, "hook", "session-start", hdata], input=json.dumps({"session_id": hsid}),
                      capture_output=True, text=True, timeout=10)

@@ -723,7 +723,8 @@ fn hook_session_start(data: &str) {
 }
 
 /// `pair hook inbox <data>`: FileChanged on the inbox. Prints what's new on stderr and exits 2, which
-/// (with asyncRewake) wakes Claude with it. Silent while the plugin monitor delivers (terminal).
+/// (with asyncRewake) wakes Claude with it. hooks.json's rewakeMessage / rewakeSummary label it, instead of
+/// Claude Code's default "Stop hook blocking error". Silent while the plugin monitor delivers (terminal).
 fn hook_inbox(data: &str) -> i32 {
     let input = hook_input();
     let Some(dir) = session_dir_for(data, input["session_id"].as_str().unwrap_or("")) else {

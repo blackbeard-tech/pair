@@ -20,6 +20,8 @@
             "command": "cd \"${CLAUDE_PLUGIN_ROOT}/scripts\"; ./pair hook inbox; exit $LASTEXITCODE",
             "async": true,
             "asyncRewake": true,
+            "rewakeMessage": "From the pair plugin:",
+            "rewakeSummary": "pair: new event",
             "timeout": 60
           }
         ]
