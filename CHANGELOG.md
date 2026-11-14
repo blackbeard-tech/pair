@@ -11,6 +11,9 @@ separately; each early entry names the plugin versions that used that binary.
 - New option, **Default trust level** (read-only unless you change it): what a pairing uses when you don't name a
   level as you pair. Claude now leaves the level out unless you named one, so the setting applies. The pair pane
   shows the level from the start of the pairing.
+- Codex: a chat could stop being woken for new messages if Codex refused or deferred the `check_messages` call that
+  follows a wake. The wake now tries again after a minute, and `check_messages` says when pair last woke the chat
+  and whether that worked. (GitHub #6)
 
 ## 0.1.15 (2026-11-14)
 
