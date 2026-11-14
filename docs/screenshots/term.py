@@ -122,10 +122,11 @@ class Term:
                     elif 0x1FB00 <= ord(c.data[0]) <= 0x1FB3B:  # sextants: 2x3 cells, as a terminal draws them
                         n = ord(c.data[0]) - 0x1FB00 + 1
                         n += (n >= 21) + (n >= 41)  # the codepoints skip 21 (left half) and 42 (right half)
+                        xs, ys = (0, hw, cw), (0, round(ch / 3), round(2 * ch / 3), ch)  # edges: the cell, no seams
                         for i in range(6):
                             if n & (1 << i):
-                                x0, y0 = (i % 2) * hw, (i // 2) * ch // 3
-                                d.rectangle([px + x0, py + y0, px + x0 + hw - 1, py + y0 + ch // 3 - 1], fill=fg)
+                                (x0, x1), (y0, y1) = xs[i % 2 : i % 2 + 2], ys[i // 2 : i // 2 + 2]
+                                d.rectangle([px + x0, py + y0, px + x1 - 1, py + y1 - 1], fill=fg)
                     elif c.data == "│":  # unbroken from row to row
                         d.line([px + hw, py, px + hw, py + ch - 1], fill=fg)
                     elif c.data == "─":
