@@ -6,7 +6,7 @@ What changed in each release of pair, newest first. Install or update in Claude 
 From 0.1.6 the plugin and its binary always share one version number. Before that they were numbered
 separately; each early entry names the plugin versions that used that binary.
 
-## Unreleased
+## 0.1.17 (2026-11-14)
 
 - Claude desktop app (Code tab) and IDEs: your colleague's messages and other pair events no longer show as
   "Stop hook blocking error from command FileChanged". They arrive labelled "From the pair plugin:", with the
