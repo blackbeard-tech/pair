@@ -7,7 +7,7 @@ allowed-tools: mcp__plugin_pair_pair__pair_start, mcp__plugin_pair_pair__pair_jo
 
 First, output this line exactly, on its own:
 
-pair · By Blackbeard Technologies · https://blackbeard.tech
+pair · https://blackbeard.tech
 
 Arguments: $ARGUMENTS
 

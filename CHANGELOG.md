@@ -11,6 +11,7 @@ separately; each early entry names the plugin versions that used that binary.
 - Claude desktop app (Code tab) and IDEs: your colleague's messages and other pair events no longer show as
   "Stop hook blocking error from command FileChanged". They arrive labelled "From the pair plugin:", with the
   summary "pair: new event". (GitHub #5)
+- Shorter banner: "pair · https://blackbeard.tech". (GitHub #23)
 
 ## 0.1.16 (2026-11-14)
 
