@@ -19,7 +19,8 @@ const dir = atom({ plugin: 'pair', key: 'dir' } as const, '')
 // docs/icon.svg
 const SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M50 14C42 14 38 22 37 31C36 40 22 46 22 64C22 82 35 94 50 94C65 94 78 82 78 64C78 46 64 40 63 31C62 22 58 14 50 14Z" fill="#d2cf48"/><path d="M50 16L52 5" stroke="#6e2a1c" stroke-width="3.5" stroke-linecap="round"/><path d="M52 11C56 4 65 2 71 5C67 12 58 14 52 11Z" fill="#4c9a3c"/></svg>`
 
-// The terminal icon: 12x10 pixels as 6x5 quadrant-block cells (every terminal font has them).
+// The terminal icon: 12x10 pixels as 12x5 half-block cells. A cell is about twice as tall as it is wide, so a half
+// block is a square pixel (quadrants would stretch the pear to twice its height). Every terminal font has them.
 const PX = [
   '......SSLL..',
   '......SP....',
@@ -33,22 +34,19 @@ const PX = [
   '............',
 ]
 const PALETTE: Record<string, number> = { P: 0xd2cf48, p: 0x8f9e2a, S: 0x6e2a1c, L: 0x4c9a3c }
-const QUAD = ' ▘▝▀▖▌▞▛▗▚▐▜▄▙▟█' // index: TL=1 TR=2 BL=4 BR=8
-const DEFAULT = 0x01000000
+const DEFAULT = 0x01000000 // the terminal's own background
 
 function iconCells(): string {
   const words: number[] = []
+  const px = (r: number, c: number) => (PX[r] ?? '').charAt(c) || '.'
+  const color = (c: string) => PALETTE[c] ?? DEFAULT
   for (let y = 0; y < PX.length; y += 2) {
-    for (let x = 0; x < 12; x += 2) {
-      const px = (r: number, c: number) => (PX[r] ?? '').charAt(c) || '.'
-      const q = [px(y, x), px(y, x + 1), px(y + 1, x), px(y + 1, x + 1)]
-      const count = (c: string) => q.filter(p => p === c).length
-      const byCount = [...new Set(q)].sort((a, b) => count(b) - count(a))
-      const fg = byCount.find(c => c !== '.')
-      const bg = byCount.find(c => c !== fg) ?? '.'
-      const bits = q.reduce((n, c, i) => (c === fg ? n | (1 << i) : n), 0)
-      const color = (c?: string) => (c ? PALETTE[c] : undefined) ?? DEFAULT
-      words.push(QUAD.codePointAt(bits) ?? 0x20, color(fg), color(bg))
+    for (let x = 0; x < 12; x++) {
+      const [top, bottom] = [px(y, x), px(y + 1, x)]
+      // Paint the coloured half as the glyph so an empty half keeps the terminal's background.
+      if (top === '.' && bottom === '.') words.push(0x20, DEFAULT, DEFAULT)
+      else if (top === '.') words.push(0x2584, color(bottom), DEFAULT) // ▄
+      else words.push(0x2580, color(top), color(bottom)) // ▀
     }
   }
   // The engine's runtime has Uint8Array.prototype.toBase64 (RasterProps' example); es2023's types don't.
@@ -205,7 +203,7 @@ export const register: Register = on => {
       e.surface === 'terminal' ? (
         (() => {
           const { Raster } = $.ui.resolve(e)
-          return <Raster key="icon" columns={6} rows={5} cells={ICON} />
+          return <Raster key="icon" columns={12} rows={5} cells={ICON} />
         })()
       ) : e.surface === 'desktop' || e.surface === 'vscode' ? (
         (() => {
