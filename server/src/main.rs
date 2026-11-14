@@ -1113,7 +1113,7 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
             start(st, Side::Initiator(Box::new(m)), me, trust);
             result_text(
                 format!(
-                    "{BANNER}\nPairing code: {code}\nAsk your user to share it with their colleague, who enters it with /pair:pair {code}. \
+                    "{BANNER}\nPairing code: {code}\nAsk your user to share it with their colleague, who enters it with /pair {code}. \
                 It works once and expires in 2 minutes. Trust level: {trust}. When they connect you will get a pair_request event: follow its instructions (never accept without your user's yes).\n{}{notice}",
                     delivery_note()
                 ),

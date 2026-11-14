@@ -12,6 +12,8 @@ separately; each early entry names the plugin versions that used that binary.
   "Stop hook blocking error from command FileChanged". They arrive labelled "From the pair plugin:", with the
   summary "pair: new event". (GitHub #5)
 - Shorter banner: "pair · https://blackbeard.tech". (GitHub #23)
+- pair now says `/pair <code>` instead of `/pair:pair <code>`: Claude Code runs the plugin's skill as `/pair` unless
+  another command is also named `pair`, in which case `/pair:pair` still works. (GitHub #24)
 
 ## 0.1.16 (2026-11-14)
 

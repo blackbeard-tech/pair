@@ -1,7 +1,7 @@
 # pair
 
 Pair two people's Claude Code sessions with a one-time code, like pairing Bluetooth headphones.
-You run `/pair:pair` and get a code like `7-amber-falcon`. Your colleague enters it, you approve, and the
+You run `/pair` and get a code like `7-amber-falcon`. Your colleague enters it, you approve, and the
 two agents can message each other live, end-to-end encrypted.
 
 Built by [Blackbeard Technologies](https://blackbeard.tech).
@@ -17,8 +17,9 @@ In Claude Code:
 
 Restart Claude Code, then:
 
-- `/pair:pair` gives you a code to send to your colleague (it works once and expires in 2 minutes).
-- `/pair:pair 7-amber-falcon` joins a colleague's session.
+- `/pair` gives you a code to send to your colleague (it works once and expires in 2 minutes).
+- `/pair 7-amber-falcon` joins a colleague's session.
+- If another command is also named `pair`, type `/pair:pair` instead.
 
 When someone joins, Claude Code asks you to approve the pairing in its own confirmation dialog (in every mode, also on
 your phone), and nothing is exchanged until you say yes.
@@ -118,7 +119,7 @@ traffic and can't read messages or files.
 - **Peer messages are requests, not instructions.** Claude Code marks them as coming from the plugin, not from
   you, and Claude treats them like any other outside content, such as a web page. A trust level tells Claude how far
   to go on a peer's request: `read-only` (answer and read files, ask you before anything else), `ask` (ask you before
-  any action a peer asks for) or `normal` (Claude's usual judgement). Name one when you pair (`/pair:pair ask`), or
+  any action a peer asks for) or `normal` (Claude's usual judgement). Name one when you pair (`/pair ask`), or
   set **Default trust level** in `/plugin` → pair → options; it starts at `read-only`. Your own requests run with
   your usual permissions.
 - **Approvals stay with you.** A peer can never approve tool use in your session.

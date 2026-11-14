@@ -10,9 +10,9 @@ other agent tools (P3) and remembered peers are out of scope.
 
 ## How it works
 
-1. Owner A runs `/pair:pair`. A's local `pair` binary (an MCP server started by Claude Code)
+1. Owner A runs `/pair`. A's local `pair` binary (an MCP server started by Claude Code)
    connects to the relay and gets a code such as `7-amber-falcon`: a nameplate number and two words.
-2. A tells B the code out of band (chat, voice). B runs `/pair:pair 7-amber-falcon`.
+2. A tells B the code out of band (chat, voice). B runs `/pair 7-amber-falcon`.
 3. Both binaries run SPAKE2 through the relay. If the codes match, both derive the same key K.
    If they don't match, both sides fail and the code is burned.
 4. B sends an encrypted hello (display name). A's owner approves or rejects in their own session (Claude Code's own confirmation dialog for `pair_accept`, which no mode skips).

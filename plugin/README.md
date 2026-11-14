@@ -1,7 +1,7 @@
 # pair
 
 Pair two people's Claude Code sessions with a one-time code, like pairing Bluetooth headphones. You run
-`/pair:pair` and get a code like `7-amber-falcon`. Your colleague runs `/pair:pair 7-amber-falcon`, you approve,
+`/pair` and get a code like `7-amber-falcon`. Your colleague runs `/pair 7-amber-falcon`, you approve,
 and the two agents can message each other and exchange files you approve, end-to-end encrypted with
 [magic-wormhole](https://magic-wormhole.readthedocs.io/).
 
@@ -20,8 +20,9 @@ Then restart Claude Code.
 
 ## Use
 
-- `/pair:pair` gives you a code to share (it works once and expires in 2 minutes).
-- `/pair:pair <code>` joins a colleague's session. The other side approves before anything is exchanged.
+- `/pair` gives you a code to share (it works once and expires in 2 minutes).
+- `/pair <code>` joins a colleague's session. The other side approves before anything is exchanged.
+- If another command is also named `pair`, type `/pair:pair` instead.
 - Pick a trust level when pairing: `read-only` (default), `ask` or `normal`. It tells Claude how far to go on the
   peer's requests; your own requests run with your usual permissions.
 - Say "unpair", or close the session, to end it.

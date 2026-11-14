@@ -531,7 +531,7 @@ export const register: Register = (on, options) => {
             @ <Link href={SITE}>blackbeard.tech</Link>
           </Text>
           <Text>Not paired.</Text>
-          <Text dimColor>Run /pair:pair for a code to send to a colleague, or /pair:pair &lt;code&gt; to join theirs.</Text>
+          <Text dimColor>Run /pair for a code to send to a colleague, or /pair &lt;code&gt; to join theirs.</Text>
           {!d && <Text dimColor>pair isn’t running in this session yet.</Text>}
         </Box>
       )
