@@ -1600,14 +1600,13 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
         Err(e) => return e,
     };
     if !initiator {
-        let peer = {
+        let (peer, via) = {
             let mut s = st.lock().unwrap();
             s.phase = Phase::Paired;
-            s.peer.clone()
+            (s.peer.clone(), if s.relayed { "relay" } else { "direct" })
         };
-        event(
-            "paired",
-            &peer,
+        push(
+            json!({"kind": "paired", "peer": peer, "via": via}),
             &format!("{peer} accepted. You are paired; use send_to_peer to message their agent."),
         );
     }
@@ -1714,15 +1713,15 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
                         continue;
                     };
                     debug!("recv t={} seq={} bytes={}", m["t"], m["seq"], bytes.len());
-                    let (peer, trust) = {
+                    let (peer, trust, via) = {
                         let s = st.lock().unwrap();
-                        (s.peer.clone(), s.trust)
+                        (s.peer.clone(), s.trust, if s.relayed { "relay" } else { "direct" })
                     };
                     match m["t"].as_str().unwrap_or("") {
                         "bye" => return "the other side unpaired".into(),
                         "file" => {
                             if let Some(done) = receive_chunk(&mut incoming, &m, max_file(st)) {
-                                let (content, kind) = match done {
+                                let (content, meta) = match done {
                                     Ok((name, size, sha, path)) => {
                                         let ok = json!({"t": "file_ok", "name": name})
                                             .to_string()
@@ -1736,12 +1735,17 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
                                                  Received files are deleted after 7 days.",
                                                 path.display()
                                             ),
-                                            "file",
+                                            // name, size and path for the pane (the text is for Claude)
+                                            json!({"kind": "file", "peer": peer, "via": via,
+                                                   "name": name, "size": size, "path": path}),
                                         )
                                     }
-                                    Err(e) => (format!("A file from {peer} was discarded: {e}"), "file_failed"),
+                                    Err(e) => (
+                                        format!("A file from {peer} was discarded: {e}"),
+                                        json!({"kind": "file_failed", "peer": peer}),
+                                    ),
                                 };
-                                push(json!({"kind": kind, "peer": peer}), &content);
+                                push(meta, &content);
                             }
                         }
                         "file_ok" => {
@@ -1760,7 +1764,7 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
                                 .collect::<Vec<_>>()
                                 .join("\n");
                             push(
-                                json!({"kind": "message", "peer": peer, "trust": trust}),
+                                json!({"kind": "message", "peer": peer, "trust": trust, "via": via}),
                                 &clean_text(&text),
                             );
                         }

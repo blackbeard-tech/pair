@@ -6,6 +6,16 @@ What changed in each release of pair, newest first. Install or update in Claude 
 From 0.1.6 the plugin and its binary always share one version number. Before that they were numbered
 separately; each early entry names the plugin versions that used that binary.
 
+## Unreleased
+
+- The pair pane follows the approved design: a header with the person you're paired with, their machine, the trust
+  level and whether the connection is direct; Chat and Files tabs; timestamped messages from them, from you and from
+  your Claude, with "new" until you've seen them and "→ Claude" to hand one over; received files with Open, Reveal
+  and → Claude; files you sent, marked delivered; the box to message them directly. While the pane is closed, a band
+  above the prompt shows what's new (Open pane, Latest → Claude), and the status line shows who you're paired with.
+  In the terminal the header icon is a small pixel pear (a larger one when nothing is paired). (pair-cvl.9)
+- Open on a received file that could run (a script, an app, an installer) shows it in its folder instead.
+
 ## 0.1.14 (2026-11-14)
 
 - `unpair` now cancels a pairing that is still waiting for the other side. Before, it said "Unpaired." but the code
