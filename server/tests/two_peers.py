@@ -360,6 +360,25 @@ m.tool("unpair")
 n.event("unpaired")
 time.sleep(1)
 
+# First connection fails after approval (magic-wormhole can panic mid-setup): both sides retry on the reconnect
+# codes instead of ending the pairing, and the joiner hears "paired" once it's up (GitHub #26).
+if os.name != "nt":
+    xenv = lambda label: dict(os.environ, PAIR_DATA=tempfile.mkdtemp(), CLAUDE_CODE_SESSION_ID=f"test-{label}",
+                              PAIR_TEST_FAST="1", PAIR_TEST_FIRST_FAILS="1")
+    x, y = Peer("X", env=xenv("X")), Peer("Y", env=xenv("Y"))
+    y.tool("pair_join", code=code_of(x.tool("pair_start", name="Xan")[0]), name="Yu")
+    x.event("pair_request")
+    assert not x.tool("pair_accept")[1]
+    assert "Couldn't connect to Xan yet" in y.event("connection")["content"]
+    assert "Connected to Xan" in y.event("connection", timeout=40)["content"]
+    y.event("paired")
+    assert "Couldn't connect to Yu yet" in x.event("connection")["content"]
+    assert "Connected to Yu" in x.event("connection", timeout=40)["content"]
+    assert not y.tool("send_to_peer", text="made it")[1]
+    assert x.event("message")["content"] == "made it"
+    x.tool("unpair")
+    y.event("unpaired")
+
 # Resume: a stalled connection reconnects by itself on a code both sides derive, with no new approval.
 # A frozen process (SIGSTOP) stands in for a laptop asleep or off the network. PAIR_TEST_FAST shortens the timers.
 if os.name != "nt":
