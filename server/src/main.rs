@@ -1558,11 +1558,44 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
         .key()
         .derive_subkey_from_purpose::<Resume>("blackbeard.tech/pair/resume");
 
+    let mut queued: VecDeque<Value> = VecDeque::new(); // sent by our user while reconnecting
+    let mut last_slot = 0;
+    let mins = RESUME_FOR.as_secs() / 60;
+
     // Stage 2: open transit and let go of the relay mailbox.
-    let mut transit = match open_transit(w, initiator).await {
+    let first = if std::env::var_os("PAIR_TEST_FIRST_FAILS").is_some() {
+        drop(w); // e2e: the first connection fails on both sides (GitHub #26)
+        Err("test: first connection refused".to_string())
+    } else {
+        open_transit(w, initiator).await
+    };
+    let mut transit = match first {
         Ok((t, relayed)) => {
             st.lock().unwrap().relayed = relayed;
             t
+        }
+        // Both sides already hold `secret`: retry a failed first connection the way a dropped one is (GitHub #26).
+        Err(e) if resume => {
+            let peer = st.lock().unwrap().peer.clone();
+            push(
+                json!({"kind": "connection", "peer": peer}),
+                &format!(
+                    "Couldn't connect to {peer} yet ({e}). Retrying by itself for up to {mins} minutes; \
+                     messages you send meanwhile go out once it's connected."
+                ),
+            );
+            match reconnect(st, &secret, &me, initiator, &mut last_slot, &rx, &mut queued).await {
+                Ok((t, relayed)) => {
+                    st.lock().unwrap().relayed = relayed;
+                    push(
+                        json!({"kind": "connection", "peer": peer}),
+                        &format!("Connected to {peer}."),
+                    );
+                    t
+                }
+                Err(Some(ended)) => return ended,
+                Err(None) => return format!("{e}, and retrying didn't work for {mins} minutes"),
+            }
         }
         Err(e) => return e,
     };
@@ -1584,8 +1617,6 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
     use futures::{SinkExt, StreamExt};
     let tm = timing();
     let ping_every = if resume { tm.ping } else { HEARTBEAT };
-    let mut queued: VecDeque<Value> = VecDeque::new(); // sent by our user while reconnecting
-    let mut last_slot = 0;
     loop {
         let (sink, stream) = transit.split();
         let (mut sink, mut stream) = (Box::pin(sink), Box::pin(stream));
@@ -1745,12 +1776,7 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
         if !resume {
             return lost;
         }
-        let peer = {
-            let mut s = st.lock().unwrap();
-            s.resuming = true;
-            s.peer.clone()
-        };
-        let mins = RESUME_FOR.as_secs() / 60;
+        let peer = st.lock().unwrap().peer.clone();
         push(
             json!({"kind": "connection", "peer": peer}),
             &format!(
@@ -1758,20 +1784,8 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
                  messages you send meanwhile go out once it's back."
             ),
         );
-        let mut again = Box::pin(resume_transit(&secret, &me, initiator, &mut last_slot));
-        let back = loop {
-            let ev = future::or(async { Err((&mut again).await) }, async { Ok(rx.recv().await) }).await;
-            match ev {
-                Err(r) => break r,
-                Ok(Err(_)) => return "closed".into(),
-                Ok(Ok(m)) if m["t"] == "bye" => return "you unpaired".into(),
-                Ok(Ok(m)) => queued.push_back(m),
-            }
-        };
-        drop(again);
-        st.lock().unwrap().resuming = false;
-        match back {
-            Some((t, relayed)) => {
+        match reconnect(st, &secret, &me, initiator, &mut last_slot, &rx, &mut queued).await {
+            Ok((t, relayed)) => {
                 transit = t;
                 st.lock().unwrap().relayed = relayed;
                 push(
@@ -1779,9 +1793,36 @@ async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Va
                     &format!("Reconnected to {peer}."),
                 );
             }
-            None => return format!("{lost}, and reconnecting didn't work for {mins} minutes"),
+            Err(Some(ended)) => return ended,
+            Err(None) => return format!("{lost}, and reconnecting didn't work for {mins} minutes"),
         }
     }
+}
+
+/// Meet the peer again on the codes derived from `secret`, queuing what our user sends meanwhile. `Err(Some(why))`
+/// when our side ended the pairing (unpair, closed), `Err(None)` when the peer didn't turn up within RESUME_FOR.
+async fn reconnect(
+    st: &St,
+    secret: &magic_wormhole::Key<Resume>,
+    me: &str,
+    initiator: bool,
+    last_slot: &mut u64,
+    rx: &async_channel::Receiver<Value>,
+    queued: &mut VecDeque<Value>,
+) -> Result<(magic_wormhole::transit::Transit, bool), Option<String>> {
+    st.lock().unwrap().resuming = true;
+    let mut again = Box::pin(resume_transit(secret, me, initiator, last_slot));
+    let back = loop {
+        let ev = future::or(async { Err((&mut again).await) }, async { Ok(rx.recv().await) }).await;
+        match ev {
+            Err(r) => break r.ok_or(None),
+            Ok(Err(_)) => break Err(Some("closed".into())),
+            Ok(Ok(m)) if m["t"] == "bye" => break Err(Some("you unpaired".into())),
+            Ok(Ok(m)) => queued.push_back(m),
+        }
+    };
+    st.lock().unwrap().resuming = false;
+    back
 }
 
 /// Key purpose for the reconnect secret and the codes derived from it.
