@@ -231,11 +231,12 @@ if os.name != "nt":
 
     # Codex passes HOME and PATH but not CLAUDE_CODE_SESSION_ID or a plugin data dir.
     cenv = {k: v for k, v in os.environ.items() if k not in ("PAIR_DATA", "CLAUDE_CODE_SESSION_ID")}
-    cx = Peer("CX", env=dict(cenv, PAIR_CODEX_BIN=fake, FAKE_CODEX_LOG=log), client="codex-mcp-client")
+    # PAIR_TEST_FAST: wakes re-arm after 2 s (60 s in use); both sides fast, so heartbeats match.
+    cx = Peer("CX", env=dict(cenv, PAIR_CODEX_BIN=fake, FAKE_CODEX_LOG=log, PAIR_TEST_FAST="1"), client="codex-mcp-client")
     thread = "0199a0c4-7b1e-7f00-8000-123456789abc"
     text, err = cx.tool("pair_start", meta={"threadId": thread}, name="Cody")
     assert not err and "[pair] notice" in text, text
-    cl = Peer("CL")
+    cl = Peer("CL", env=dict(os.environ, PAIR_DATA=tempfile.mkdtemp(), CLAUDE_CODE_SESSION_ID="test-CL", PAIR_TEST_FAST="1"))
     cl.tool("pair_join", code=code_of(text), name="Cleo")
     w = wakes(1)[0]
     assert w[:4] == ["queue", "--thread", thread, "--message"] and "check_messages" in w[4], w
@@ -246,10 +247,16 @@ if os.name != "nt":
     assert not cl.tool("send_to_peer", text="secret two")[1]
     got = wakes(2)  # two messages, one wake
     assert not any("secret" in a for w in got for a in w), got
+    # The host refuses that check_messages (Codex's approval reviewer), so pair never hears of it: once the wake
+    # re-arms, the next message wakes the chat again (GitHub #6).
+    time.sleep(2.5)
+    assert not cl.tool("send_to_peer", text="secret three")[1]
+    wakes(3)
     inbox = cx.tool("check_messages")[0]
-    assert "secret one" in inbox and "secret two" in inbox, inbox
+    assert all(s in inbox for s in ("secret one", "secret two", "secret three")), inbox
+    assert "Codex wake: " in inbox and "queued" in inbox, inbox
     cl.tool("unpair")
-    wakes(3)  # woken again after check_messages
+    wakes(4)  # woken again after check_messages
     assert "other side unpaired" in cx.tool("check_messages")[0]
 
 # Monitor path: with a live `pair watch` for G's session, G's events go to its session inbox and

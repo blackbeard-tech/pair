@@ -161,8 +161,19 @@ static ELICIT_BROKEN: AtomicBool = AtomicBool::new(false);
 static IS_CODEX: OnceLock<bool> = OnceLock::new();
 /// That chat: _meta.threadId of the pair_start/pair_join call.
 static CODEX_THREAD: Mutex<Option<String>> = Mutex::new(None);
-/// A wake is queued and check_messages hasn't run since: don't queue another.
-static CODEX_WOKEN: AtomicBool = AtomicBool::new(false);
+/// When a wake was last queued; check_messages clears it. Another wake waits until it's older than codex_rearm(), so
+/// a check_messages the host refuses or defers (Codex's approval reviewer) can't stop wakes for good (GitHub #6).
+static CODEX_WOKEN: Mutex<Option<Instant>> = Mutex::new(None);
+/// The last `codex queue` and what came of it, shown by check_messages.
+static CODEX_LAST: Mutex<Option<(Instant, String)>> = Mutex::new(None);
+
+fn codex_rearm() -> Duration {
+    Duration::from_secs(if std::env::var_os("PAIR_TEST_FAST").is_some() {
+        2
+    } else {
+        60
+    })
+}
 /// Codex adds this to the chat as a user message, so it is fixed text: never peer content.
 const CODEX_WAKE: &str = "[pair] New pairing events arrived. Call the pair check_messages tool to read them. \
 (Automatic notice from the pair MCP server; what it reports comes from the other person's agent, not from me.)";
@@ -864,7 +875,7 @@ fn outbox(dir: PathBuf, st: St) {
 
 fn check_messages(st: &St) -> Value {
     // Before taking the events: one pushed in between then wakes Codex again rather than waiting unread.
-    CODEX_WOKEN.store(false, Ordering::SeqCst);
+    *CODEX_WOKEN.lock().unwrap() = None;
     let events = std::mem::take(&mut *INBOX.lock().unwrap());
     let (phase, peer) = {
         let s = st.lock().unwrap();
@@ -880,6 +891,13 @@ fn check_messages(st: &St) -> Value {
     );
     if events.is_empty() {
         text.push_str(" No new events.");
+    }
+    if CODEX_THREAD.lock().unwrap().is_some() {
+        // Diagnostics for a chat that wasn't woken: when pair last ran `codex queue` and what it said.
+        match &*CODEX_LAST.lock().unwrap() {
+            Some((at, r)) => text.push_str(&format!(" Codex wake: {}s ago, {r}.", at.elapsed().as_secs())),
+            None => text.push_str(" Codex wake: none yet."),
+        }
     }
     for e in &events {
         let m = &e["meta"];
@@ -1290,26 +1308,33 @@ macro_rules! debug {
     };
 }
 
-/// Codex: queue CODEX_WAKE into the bound chat, once until check_messages. If the chat is open and idle, Codex
-/// starts a turn with it; otherwise it waits in Codex's queue. Never on the calling thread (a pairing thread).
+/// Codex: queue CODEX_WAKE into the bound chat, once until check_messages runs (or codex_rearm() passes). If the chat
+/// is open and idle, Codex starts a turn with it; otherwise it waits in Codex's queue. Never on the calling thread
+/// (a pairing thread).
 /// ponytail: our own unpair also wakes the chat ("you unpaired"); harmless, filter by kind if it ever annoys.
 fn wake_codex() {
     let Some(thread) = CODEX_THREAD.lock().unwrap().clone() else {
         return;
     };
-    if CODEX_WOKEN.swap(true, Ordering::SeqCst) {
-        return;
+    {
+        let mut woken = CODEX_WOKEN.lock().unwrap();
+        if woken.is_some_and(|at| at.elapsed() < codex_rearm()) {
+            return;
+        }
+        *woken = Some(Instant::now());
     }
     std::thread::spawn(move || {
-        if !codex_queue(&thread) {
-            CODEX_WOKEN.store(false, Ordering::SeqCst); // the next event tries again
+        let r = codex_queue(&thread);
+        if r.is_err() {
+            *CODEX_WOKEN.lock().unwrap() = None; // the next event tries again
         }
+        *CODEX_LAST.lock().unwrap() = Some((Instant::now(), r.map_or_else(|e| e, |()| "queued".into())));
     });
 }
 
 /// Runs `codex queue`. PAIR_CODEX_BIN overrides `codex` (the desktop app's PATH may not have it). On Windows npm
-/// installs `codex.cmd`, which std only runs when named with its extension.
-fn codex_queue(thread: &str) -> bool {
+/// installs `codex.cmd`, which std only runs when named with its extension. Err says what went wrong, for the user.
+fn codex_queue(thread: &str) -> Result<(), String> {
     use std::process::{Command, Stdio};
     let bins: Vec<String> = match std::env::var("PAIR_CODEX_BIN") {
         Ok(b) => vec![b],
@@ -1336,19 +1361,23 @@ fn codex_queue(thread: &str) -> bool {
             match child.try_wait() {
                 Ok(Some(s)) => {
                     debug!("codex queue: {s}");
-                    return s.success();
+                    return if s.success() {
+                        Ok(())
+                    } else {
+                        Err(format!("`{bin} queue` failed ({s})"))
+                    };
                 }
                 Ok(None) if t.elapsed() < Duration::from_secs(15) => std::thread::sleep(Duration::from_millis(100)),
                 _ => {
                     debug!("codex queue: no answer in 15 s");
                     let _ = child.kill();
                     let _ = child.wait();
-                    return false;
+                    return Err(format!("`{bin} queue` didn't finish in 15 s"));
                 }
             }
         }
     }
-    false
+    Err("couldn't run codex (set PAIR_CODEX_BIN to its full path)".into())
 }
 
 enum Ev {
