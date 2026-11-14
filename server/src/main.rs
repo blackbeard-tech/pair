@@ -1245,9 +1245,10 @@ fn start(st: &St, side: Side, me: String, trust: &'static str) {
     }
     let st = st.clone();
     std::thread::spawn(move || {
-        // magic-wormhole 0.8.1 panics (todo!) on a malformed peer phase; contain it to this pairing.
+        // magic-wormhole 0.8.1 panics (todo!, expect) on a malformed peer phase or a socket that closes mid-setup;
+        // contain it to this pairing.
         let reason = catch_unwind(AssertUnwindSafe(|| async_io::block_on(session(&st, side, me, rx))))
-            .unwrap_or_else(|_| "the peer sent malformed data".into());
+            .unwrap_or_else(|p| format!("pair hit an internal error ({}); pair again", panic_text(&*p)));
         let peer = {
             let mut s = st.lock().unwrap();
             s.phase = Phase::Idle;
@@ -1408,7 +1409,24 @@ async fn open_transit(mut w: Wormhole, initiator: bool) -> Result<(magic_wormhol
         async_io::Timer::after(Duration::from_secs(60)).await;
         Err("couldn't open a connection to the other side (check that they run pair 0.1.9 or later)".to_string())
     };
+    // magic-wormhole 0.8.1 panics ("socket must be IP") when a transit socket closes before it reads the peer's
+    // address. Make that a failed attempt: a reconnect then tries its next slot instead of ending the pairing.
+    let setup = async {
+        use futures::FutureExt;
+        AssertUnwindSafe(setup)
+            .catch_unwind()
+            .await
+            .unwrap_or_else(|p| Err(format!("connection setup failed ({})", panic_text(&*p))))
+    };
     future::or(setup, timeout).await
+}
+
+/// A panic's message, for the user.
+fn panic_text(p: &(dyn std::any::Any + Send)) -> String {
+    p.downcast_ref::<String>()
+        .cloned()
+        .or_else(|| p.downcast_ref::<&str>().map(|s| s.to_string()))
+        .unwrap_or_else(|| "unknown".into())
 }
 
 async fn session(st: &St, side: Side, me: String, rx: async_channel::Receiver<Value>) -> String {
@@ -2006,6 +2024,14 @@ mod tests {
         assert_eq!(watch_line(&e), r#"pair unpaired: "Pairing ended: x""#);
         let e = json!({"meta": {"kind": "message", "peer": "a@b · Ann"}, "content": "hi"});
         assert_eq!(watch_line(&e), r#"pair message from "Ann": "hi""#);
+    }
+
+    #[test]
+    fn panic_text_reads_both_payloads() {
+        let p = catch_unwind(|| panic!("socket must be {}", "IP")).unwrap_err();
+        assert_eq!(panic_text(&*p), "socket must be IP");
+        let p = catch_unwind(|| std::panic::panic_any("not yet")).unwrap_err();
+        assert_eq!(panic_text(&*p), "not yet");
     }
 
     #[test]
