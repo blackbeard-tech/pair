@@ -288,7 +288,10 @@ genv = dict(os.environ, PAIR_DATA=data, CLAUDE_CODE_SESSION_ID="test-session-g")
 sdir = os.path.join(data, "sessions", "test-session-g")
 w = subprocess.Popen([BIN, "watch", data], env=genv, stdout=subprocess.PIPE, text=True, encoding="utf-8")
 wq = queue.Queue()
-threading.Thread(target=lambda: [wq.put(l.rstrip("\n")) for l in w.stdout], daemon=True).start()
+# Connection notices (a setup retry after a magic-wormhole panic, a drop and reconnect) can come between any two
+# lines; this test is about the other lines, so the watcher's queue leaves them out.
+threading.Thread(target=lambda: [wq.put(l.rstrip("\n")) for l in w.stdout if not l.startswith("pair connection ")],
+                 daemon=True).start()
 time.sleep(1)  # first heartbeat
 g, h = Peer("G", env=genv), Peer("H")
 text = g.tool("pair_start", name="Gina")[0]
@@ -329,7 +332,8 @@ cmd = shlex.split(re.search(r'(".+?" wait ".+?")', text).group(1))
 def wait_once(timeout=30):
     out = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=timeout).stdout.strip().splitlines()
     print("  wait ->", [o[:70] for o in out])
-    return out
+    rest = [o for o in out if not o.startswith("pair connection ")]  # see the watcher above
+    return rest if rest or not out else wait_once(timeout)
 waiter = threading.Thread(target=lambda: setattr(waiter, "out", wait_once()))
 waiter.start()
 l.tool("pair_join", code=code_of(text), name="Lou")
@@ -371,7 +375,8 @@ def file_watcher():
         if n != size:
             size = n
             rc, lines = fire(watched)
-            if rc == 2:
+            lines = [x for x in lines if not x.startswith("pair connection ")]  # see the watcher above
+            if rc == 2 and lines:
                 wakes.put(lines)
         time.sleep(0.1)
 threading.Thread(target=file_watcher, daemon=True).start()
