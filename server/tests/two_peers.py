@@ -26,7 +26,7 @@ class Peer:
             self.inbox = os.path.join(env["PAIR_DATA"], "sessions", env["CLAUDE_CODE_SESSION_ID"], "inbox.jsonl")
         self.seen = 0
         self.answer = "accept"  # reply to elicitation dialogs (the human's yes/no)
-        self.p = subprocess.Popen([BIN], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
+        self.p = subprocess.Popen([BIN], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, encoding="utf-8", env=env)
         self.q = queue.Queue()
         threading.Thread(target=self._read, daemon=True).start()
         r = self.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {"elicitation": {}}, "clientInfo": {"name": client}})
@@ -69,7 +69,7 @@ class Peer:
         end = time.time() + timeout
         while time.time() < end:
             try:
-                lines = open(self.inbox).read().splitlines()
+                lines = open(self.inbox, encoding="utf-8").read().splitlines()
             except FileNotFoundError:
                 lines = []
             for line in lines[self.seen:]:
@@ -286,7 +286,7 @@ import os, tempfile, time
 data = tempfile.mkdtemp()
 genv = dict(os.environ, PAIR_DATA=data, CLAUDE_CODE_SESSION_ID="test-session-g")
 sdir = os.path.join(data, "sessions", "test-session-g")
-w = subprocess.Popen([BIN, "watch", data], env=genv, stdout=subprocess.PIPE, text=True)
+w = subprocess.Popen([BIN, "watch", data], env=genv, stdout=subprocess.PIPE, text=True, encoding="utf-8")
 wq = queue.Queue()
 threading.Thread(target=lambda: [wq.put(l.rstrip("\n")) for l in w.stdout], daemon=True).start()
 time.sleep(1)  # first heartbeat
@@ -327,7 +327,7 @@ text = k.tool("pair_start", name="Kim")[0]
 assert "Live delivery: NOT set up" in text, text
 cmd = shlex.split(re.search(r'(".+?" wait ".+?")', text).group(1))
 def wait_once(timeout=30):
-    out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout).stdout.strip().splitlines()
+    out = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=timeout).stdout.strip().splitlines()
     print("  wait ->", [o[:70] for o in out])
     return out
 waiter = threading.Thread(target=lambda: setattr(waiter, "out", wait_once()))
@@ -356,12 +356,12 @@ inbox_hook = json.load(open(hooks_json))["hooks"]["FileChanged"][0]["hooks"][0]
 assert inbox_hook["asyncRewake"] and inbox_hook["rewakeMessage"] and inbox_hook["rewakeSummary"], inbox_hook
 hdata, hsid = tempfile.mkdtemp(), "test-session-hooks"
 out = subprocess.run([BIN, "hook", "session-start", hdata], input=json.dumps({"session_id": hsid}),
-                     capture_output=True, text=True, timeout=10)
+                     capture_output=True, text=True, encoding="utf-8", timeout=10)
 watched = json.loads(out.stdout)["hookSpecificOutput"]["watchPaths"][0]
 assert watched.endswith(os.path.join("sessions", hsid, "inbox.jsonl")), watched
 wakes = queue.Queue()
 def fire(path):
-    r = subprocess.run([BIN, "hook", "inbox", hdata], capture_output=True, text=True, timeout=30,
+    r = subprocess.run([BIN, "hook", "inbox", hdata], capture_output=True, text=True, encoding="utf-8", timeout=30,
                        input=json.dumps({"session_id": hsid, "file_path": path, "event": "change"}))
     return r.returncode, r.stderr.strip().splitlines()
 def file_watcher():
