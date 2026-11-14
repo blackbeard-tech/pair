@@ -118,6 +118,11 @@ then `twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1`): use it to te
 
 ## Releasing (each step needs the owner's go)
 
+**One command:** with the owner's go for a release, run `scripts/release.sh X.Y.Z`. It does steps 1 to 3 below through
+PRs (CI waited for, failed jobs rerun once), then updates this machine's plugin. Running it is the go for every push
+and merge inside it, so it is allowlisted in `.claude/settings.json` (owner decision 2026-11-14: no per-step
+confirmations); ad-hoc pushes and merges keep their ask rules. The steps below are what it does, for a manual release.
+
 1. Bump `server/Cargo.toml` version and rename CHANGELOG.md's `## Unreleased` to `## X.Y.Z (date)`; commit.
    The release notes are that section plus `.github/release-notes.md`.
 2. `git tag vX.Y.Z` and push the tag: `release.yml` builds macOS (both arches), Windows and Linux (x64,
