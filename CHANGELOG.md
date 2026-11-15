@@ -6,7 +6,7 @@ What changed in each release of pair, newest first. Install or update in Claude 
 From 0.1.6 the plugin and its binary always share one version number. Before that they were numbered
 separately; each early entry names the plugin versions that used that binary.
 
-## Unreleased
+## 0.1.18 (2026-11-15)
 
 - Claude Desktop extension: each release now has `pair-X.Y.Z.mcpb`. Open it to use pair from the desktop app's Chat
   tab; in Chat, ask Claude to check for messages. It holds the release's own binaries, packed by the release workflow.
