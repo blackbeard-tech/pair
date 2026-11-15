@@ -1236,8 +1236,15 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
             } else {
                 ""
             };
+            // No session dir (Claude Desktop's Chat tab, claude -p without one): nothing arrives by itself.
+            let arrive =
+                if SESSION_DIR.get().and_then(|d| d.as_deref()).is_some() || CODEX_THREAD.lock().unwrap().is_some() {
+                    "Their messages will arrive by themselves"
+                } else {
+                    "Nothing arrives by itself here: call check_messages each turn to see their messages"
+                };
             result_text(
-                format!("{how}Paired with {peer}. Their messages will arrive by themselves; reply with send_to_peer."),
+                format!("{how}Paired with {peer}. {arrive}; reply with send_to_peer."),
                 false,
             )
         }

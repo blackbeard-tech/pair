@@ -1,0 +1,62 @@
+{
+  "manifest_version": "0.3",
+  "name": "pair",
+  "display_name": "pair",
+  "version": "0.0.0",
+  "description": "Pair this Claude with a colleague's Claude Code session using a one-time code, then let the two agents message each other, end-to-end encrypted.",
+  "long_description": "Ask Claude to start a pairing and send the code to your colleague, who enters it in Claude Code with /pair <code>; or enter a code they send you. You approve every pairing. In the Chat tab nothing arrives by itself: ask Claude to check for messages (it uses check_messages). By Blackbeard Technologies.",
+  "author": {
+    "name": "Blackbeard Technologies",
+    "url": "https://blackbeard.tech"
+  },
+  "homepage": "https://blackbeard.tech",
+  "documentation": "https://github.com/blackbeard-tech/pair#readme",
+  "support": "https://github.com/blackbeard-tech/pair/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/blackbeard-tech/pair"
+  },
+  "license": "Apache-2.0",
+  "icon": "icon.png",
+  "keywords": ["pairing", "agents", "magic-wormhole", "claude-code"],
+  "privacy_policies": ["https://github.com/blackbeard-tech/pair/blob/main/docs/privacy.md"],
+  "server": {
+    "type": "binary",
+    "entry_point": "server/pair.sh",
+    "mcp_config": {
+      "command": "/bin/sh",
+      "args": ["${__dirname}/server/pair.sh"],
+      "env": {
+        "PAIR_DEFAULT_TRUST": "${user_config.default_trust}"
+      },
+      "platform_overrides": {
+        "win32": {
+          "command": "${__dirname}/server/pair-windows-x64.exe",
+          "args": []
+        }
+      }
+    }
+  },
+  "tools": [
+    { "name": "pair_start", "description": "Start pairing: get a one-time code to share with a colleague" },
+    { "name": "pair_join", "description": "Join a colleague's pairing with the code they shared" },
+    { "name": "pair_accept", "description": "Accept a pending pairing request, after your approval" },
+    { "name": "pair_reject", "description": "Decline a pending pairing request" },
+    { "name": "send_to_peer", "description": "Send a message to the paired agent" },
+    { "name": "send_file", "description": "Send a file to the paired colleague, after your approval" },
+    { "name": "unpair", "description": "End the pairing" },
+    { "name": "check_messages", "description": "Collect pairing events and messages from the other agent" }
+  ],
+  "user_config": {
+    "default_trust": {
+      "type": "string",
+      "title": "Default trust level",
+      "description": "What your colleague's requests may make Claude do without asking you, when you don't name a level as you pair: read-only (answer and read files, ask before anything else), ask (ask before anything) or normal (Claude's usual judgement).",
+      "default": "read-only",
+      "required": false
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32"]
+  }
+}

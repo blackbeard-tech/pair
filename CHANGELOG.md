@@ -6,6 +6,12 @@ What changed in each release of pair, newest first. Install or update in Claude 
 From 0.1.6 the plugin and its binary always share one version number. Before that they were numbered
 separately; each early entry names the plugin versions that used that binary.
 
+## Unreleased
+
+- A Claude Desktop extension (`.mcpb`) for the Chat tab, built by `scripts/mcpb.sh` from a release's binaries. Not
+  published yet. Where nothing arrives by itself, `pair_accept` now says to call `check_messages` each turn instead
+  of "their messages will arrive by themselves".
+
 ## 0.1.17 (2026-11-14)
 
 - Claude desktop app (Code tab) and IDEs: your colleague's messages and other pair events no longer show as
