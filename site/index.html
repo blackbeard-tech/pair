@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>pair for Claude Code</title>
+<meta name="description" content="Pair two Claude Code sessions with a one-time code. Your agents message each other, end-to-end encrypted, and you approve every pairing.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/bricolage-grotesque-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+<script src="copy.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="hero">
+  <nav class="bar wrap" aria-label="Site">
+    <a class="mark" href="./"><img src="icon.svg" alt="" width="32" height="32"><span>pair</span></a>
+    <ul>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#control">Control</a></li>
+      <li><a href="https://github.com/blackbeard-tech/pair#readme">README</a></li>
+    </ul>
+  </nav>
+
+  <div class="wrap hero-grid">
+    <div class="pitch">
+      <h1>Pair two Claude Code sessions with a <span class="nowrap">one-time</span> code.</h1>
+      <p class="lede">Like pairing Bluetooth headphones. You run <code>/pair</code>, your colleague enters the code, you approve, and your two agents can talk to each other, end-to-end encrypted.</p>
+
+      <div class="install" id="install">
+        <div class="install-head"><p class="install-label">In Claude Code:</p></div>
+        <pre data-copy><code>/plugin marketplace add blackbeard-tech/marketplace
+/plugin install pair@bbtech</code></pre>
+        <p class="install-then">Restart Claude Code, then run <code>/pair</code>.</p>
+      </div>
+    </div>
+
+    <figure class="duo" aria-labelledby="duo-caption">
+      <div class="term">
+        <p class="term-who">You</p>
+        <ol class="term-lines">
+          <li class="l1"><span class="cmd">› /pair</span></li>
+          <li class="l2">Your pairing code is <b class="code">7-amber-falcon</b></li>
+          <li class="l5">Sam wants to pair. Approve? <span class="cmd">› Yes</span></li>
+          <li class="l6 ok">Paired with Sam · encrypted</li>
+          <li class="l8"><span class="peer">Sam:</span> Why does test_login fail since the timeout change?</li>
+          <li class="l9">Claude reads the code and sends Sam the answer.</li>
+        </ol>
+      </div>
+      <div class="term">
+        <p class="term-who">Your colleague</p>
+        <ol class="term-lines">
+          <li class="l3"><span class="cmd">› /pair 7-amber-falcon</span></li>
+          <li class="l4">Waiting for approval…</li>
+          <li class="l6 ok">Paired · encrypted</li>
+          <li class="l7"><span class="cmd">› ask their Claude about test_login</span></li>
+          <li class="l10"><span class="peer">Their Claude:</span> The timeout is in minutes but compared with seconds.</li>
+        </ol>
+      </div>
+      <figcaption id="duo-caption" class="visually-hidden">A pairing from both sides: you run /pair and get a code, your colleague joins with it, you approve, and the two agents exchange a question and an answer.</figcaption>
+    </figure>
+  </div>
+</header>
+
+<main id="main">
+  <section class="how wrap" id="how" aria-labelledby="how-title">
+    <h2 id="how-title">Three steps, one code</h2>
+    <ol class="steps">
+      <li>
+        <h3>Start</h3>
+        <p>Run <code>/pair</code>. Claude gives you a code made of a number and two words, like <b class="code">7-amber-falcon</b>.</p>
+      </li>
+      <li>
+        <h3>Share</h3>
+        <p>Send the code to your colleague however you like: chat, a call, across the desk. They run <code>/pair</code> with it. Each code works once.</p>
+      </li>
+      <li>
+        <h3>Approve</h3>
+        <p>Claude Code shows you who is joining and asks you to confirm. Once you say yes, the two agents can message each other and send files you agree to.</p>
+      </li>
+    </ol>
+
+    <figure class="diagram">
+      <svg class="d-wide" viewBox="0 0 720 280" role="img" aria-labelledby="dia-title dia-desc">
+        <title id="dia-title">How two sessions connect</title>
+        <desc id="dia-desc">You share the code with your colleague yourself. After you approve, messages and files travel between the two machines encrypted end to end.</desc>
+        <text class="d-label" x="360" y="20" text-anchor="middle">you share the code yourself</text>
+        <path class="d-share" d="M150 108 C 250 26, 470 26, 570 108"/>
+        <rect class="d-chip" x="292" y="38" width="136" height="28" rx="14"/>
+        <text class="d-chip-text" x="360" y="57" text-anchor="middle">7-amber-falcon</text>
+
+        <g class="d-machine">
+          <rect x="60" y="112" width="180" height="104" rx="10"/>
+          <rect class="d-screen" x="72" y="124" width="156" height="80" rx="4"/>
+          <path d="M40 226 h220 l-14 14 h-192 z"/>
+        </g>
+        <g class="d-machine">
+          <rect x="480" y="112" width="180" height="104" rx="10"/>
+          <rect class="d-screen" x="492" y="124" width="156" height="80" rx="4"/>
+          <path d="M460 226 h220 l-14 14 h-192 z"/>
+        </g>
+        <text class="d-prompt" x="86" y="160">› /pair</text>
+        <text class="d-prompt" x="504" y="160">› /pair 7-amber…</text>
+
+        <path class="d-link" d="M242 168 H478"/>
+        <g class="d-lock" transform="translate(360 168)">
+          <rect x="-17" y="-8" width="34" height="27" rx="5"/>
+          <path class="d-shackle" d="M-10 -8 v-7 a10 10 0 0 1 20 0 v7"/>
+        </g>
+        <text class="d-label" x="360" y="214" text-anchor="middle">messages and files,</text>
+        <text class="d-label" x="360" y="234" text-anchor="middle">encrypted end to end</text>
+
+        <text class="d-name" x="150" y="268" text-anchor="middle">You</text>
+        <text class="d-name" x="570" y="268" text-anchor="middle">Your colleague</text>
+      </svg>
+      <svg class="d-tall" viewBox="0 0 376 545" role="img" aria-labelledby="dia2-title dia2-desc">
+        <title id="dia2-title">How two sessions connect</title>
+        <desc id="dia2-desc">You share the code with your colleague yourself. After you approve, messages and files travel between the two machines encrypted end to end.</desc>
+        <text class="d-name" x="180" y="22" text-anchor="middle">You</text>
+        <g class="d-machine">
+          <rect x="90" y="34" width="180" height="104" rx="10"/>
+          <rect class="d-screen" x="102" y="46" width="156" height="80" rx="4"/>
+          <path d="M70 148 h220 l-14 14 h-192 z"/>
+        </g>
+        <text class="d-prompt" x="116" y="92">› /pair</text>
+
+        <path class="d-share" d="M90 96 C 20 150, 20 380, 90 426"/>
+        <text class="d-label" x="14" y="230">you share</text>
+        <text class="d-label" x="14" y="248">the code yourself</text>
+        <rect class="d-chip" x="12" y="258" width="136" height="28" rx="14"/>
+        <text class="d-chip-text" x="80" y="277" text-anchor="middle">7-amber-falcon</text>
+
+        <path class="d-link" d="M180 166 V374"/>
+        <g class="d-lock" transform="translate(180 270)">
+          <rect x="-17" y="-8" width="34" height="27" rx="5"/>
+          <path class="d-shackle" d="M-10 -8 v-7 a10 10 0 0 1 20 0 v7"/>
+        </g>
+        <text class="d-label" x="208" y="266">messages and files,</text>
+        <text class="d-label" x="208" y="286">encrypted end to end</text>
+
+        <g class="d-machine">
+          <rect x="90" y="378" width="180" height="104" rx="10"/>
+          <rect class="d-screen" x="102" y="390" width="156" height="80" rx="4"/>
+          <path d="M70 492 h220 l-14 14 h-192 z"/>
+        </g>
+        <text class="d-prompt" x="106" y="436">› /pair 7-amber…</text>
+        <text class="d-name" x="180" y="536" text-anchor="middle">Your colleague</text>
+      </svg>
+    </figure>
+  </section>
+
+  <section class="see" aria-labelledby="see-title">
+    <div class="wrap">
+      <h2 id="see-title">What it looks like</h2>
+      <figure class="shot">
+        <img src="paired.png" width="1464" height="984" loading="lazy" decoding="async"
+             alt="Claude Code paired with a colleague's session. Their agent's question arrives by itself in the chat, Claude reads the code and sends back the cause of a failing test without changing any files, and a pane beside the chat shows the conversation.">
+        <figcaption>A real Claude Code session, paired. The colleague is a scripted demo.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="control wrap" id="control" aria-labelledby="control-title">
+    <h2 id="control-title">You stay in control</h2>
+    <ul class="points">
+      <li>
+        <h3>You approve every pairing</h3>
+        <p>When someone enters your code, Claude Code's own confirmation dialog shows who is joining. Nobody pairs with you without your yes.</p>
+      </li>
+      <li>
+        <h3>Requests, not instructions</h3>
+        <p>The other agent's messages are treated like any outside content. You set how far Claude goes on them, from asking you before anything to its usual judgement.</p>
+      </li>
+      <li>
+        <h3>Files need your OK</h3>
+        <p>Every file you send needs your confirmation. Files you receive go to a quarantine folder outside your project.</p>
+      </li>
+      <li>
+        <h3>Encrypted end to end</h3>
+        <p>pair is built on magic-wormhole. Relays help the two machines find each other but never see your messages or files.</p>
+      </li>
+      <li>
+        <h3>No accounts, no analytics</h3>
+        <p>Nothing to sign up for, and no tracking. pair is free and open source.</p>
+      </li>
+      <li>
+        <h3>The details are public</h3>
+        <p>What pair connects to, what it stores and its threat model are all in the <a href="https://github.com/blackbeard-tech/pair#readme">README</a>.</p>
+      </li>
+    </ul>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-grid">
+    <p class="foot-mark"><img src="icon.svg" alt="" width="28" height="28"><span>pair is free and open source under the Apache-2.0 licence, by <a href="https://blackbeard.tech">Blackbeard Technologies</a>.</span></p>
+    <ul class="foot-links">
+      <li><a href="https://github.com/blackbeard-tech/pair#readme">README</a></li>
+      <li><a href="https://github.com/blackbeard-tech/pair">Source</a></li>
+      <li><a href="https://github.com/blackbeard-tech/pair/blob/main/CHANGELOG.md">Changelog</a></li>
+      <li><a href="https://github.com/blackbeard-tech/pair/blob/main/docs/privacy.md">Privacy</a></li>
+      <li><a href="https://github.com/blackbeard-tech/pair/blob/main/SECURITY.md">Security</a></li>
+      <li><a href="https://github.com/blackbeard-tech/pair/issues">Report a problem</a></li>
+    </ul>
+  </div>
+</footer>
+</body>
+</html>
