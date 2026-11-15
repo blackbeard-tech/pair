@@ -17,12 +17,15 @@ perl -pi -e "s/\"version\": \"0.0.0\"/\"version\": \"$v\"/" "$stage/manifest.jso
 
 assets=(pair-macos-arm64 pair-macos-x64 pair-windows-x64.exe)
 gh release download "v$v" -R blackbeard-tech/pair -D "$stage/server" -p checksums.txt "${assets[@]/#/-p}"
-(cd "$stage/server" && grep -E " ($(IFS='|'; echo "${assets[*]}"))\$" checksums.txt | shasum -a 256 -c -) \
+sum=(shasum -a 256)
+command -v sha256sum >/dev/null && sum=(sha256sum)
+(cd "$stage/server" && grep -E " ($(IFS='|'; echo "${assets[*]}"))\$" checksums.txt | "${sum[@]}" -c -) \
   || { echo "checksum mismatch: refusing to pack" >&2; exit 1; }
 rm "$stage/server/checksums.txt"
 chmod +x "$stage/server/pair.sh" "$stage/server"/pair-macos-*
 
 mkdir -p "$repo/dist"
-npx --yes @anthropic-ai/mcpb validate "$stage/manifest.json"
-npx --yes @anthropic-ai/mcpb pack "$stage" "$repo/dist/pair-$v.mcpb"
+mcpb=@anthropic-ai/mcpb@2.1.2 # pinned: it builds what users install
+npx --yes "$mcpb" validate "$stage/manifest.json"
+npx --yes "$mcpb" pack "$stage" "$repo/dist/pair-$v.mcpb"
 echo "$repo/dist/pair-$v.mcpb"

@@ -8,9 +8,10 @@ separately; each early entry names the plugin versions that used that binary.
 
 ## Unreleased
 
-- A Claude Desktop extension (`.mcpb`) for the Chat tab, built by `scripts/mcpb.sh` from a release's binaries. Not
-  published yet. Where nothing arrives by itself, `pair_accept` now says to call `check_messages` each turn instead
-  of "their messages will arrive by themselves".
+- Claude Desktop extension: each release now has `pair-X.Y.Z.mcpb`. Open it to use pair from the desktop app's Chat
+  tab; in Chat, ask Claude to check for messages. It holds the release's own binaries, packed by the release workflow.
+- Where nothing arrives by itself, `pair_accept` now says to call `check_messages` each turn instead of "their
+  messages will arrive by themselves".
 
 ## 0.1.17 (2026-11-14)
 

@@ -81,10 +81,10 @@ Shared folders and pairing with more than one person are coming. An organization
 
 ### Claude desktop app (Chat tab)
 
-`scripts/mcpb.sh X.Y.Z` builds `dist/pair-X.Y.Z.mcpb`, a Claude Desktop extension made from release vX.Y.Z's binaries
-(checksum-checked; the macOS ones are signed). Open it to install, and set the Default trust level in the extension's
-settings. In the Chat tab nothing arrives by itself: ask Claude to check for messages. Not published as a release asset
-yet: how Desktop confirms a pairing there is still being checked.
+Download `pair-X.Y.Z.mcpb` from the [latest release](https://github.com/blackbeard-tech/pair/releases/latest) and open
+it to install pair as a Claude Desktop extension. It holds that release's own binaries (the macOS ones signed), packed by
+the release workflow. Set the Default trust level in the extension's settings. In the Chat tab nothing arrives by
+itself: ask Claude to check for messages. To build one yourself from a release: `scripts/mcpb.sh X.Y.Z`.
 
 ### Codex
 
