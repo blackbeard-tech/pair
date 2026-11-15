@@ -234,6 +234,30 @@ jobs:
           pre=""; case "$TAG" in *-*) pre=--prerelease ;; esac  # e.g. v0.1.7-rc.1: test builds, never pinned
           gh release create "$TAG" pair-* checksums.txt THIRD_PARTY_LICENSES.md $pre --repo "$REPO" --title "pair $TAG" --notes-file "$RUNNER_TEMP/notes.md"
 
+  # The Claude Desktop extension: the release's own binaries (checksum-checked) packed into pair-X.Y.Z.mcpb.
+  mcpb:
+    needs: publish
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { contents: write, id-token: write, attestations: write }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - name: build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: scripts/mcpb.sh "${TAG#v}"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with: { subject-path: "dist/pair-*.mcpb" }
+      - name: attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: gh release upload "$TAG" "dist/pair-${TAG#v}.mcpb" --repo "$REPO"
+
   # Records how notarization ended. The published files are unchanged either way.
   notes:
     needs: [publish, macos-sign, macos-notarize]
