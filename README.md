@@ -4,7 +4,8 @@ Pair two people's Claude Code sessions with a one-time code, like pairing Blueto
 You run `/pair` and get a code like `7-amber-falcon`. Your colleague enters it, you approve, and the
 two agents can message each other live, end-to-end encrypted.
 
-Built by [Blackbeard Technologies](https://blackbeard.tech).
+Built by [Blackbeard Technologies](https://blackbeard.tech). Website:
+[blackbeard-tech.github.io/pair](https://blackbeard-tech.github.io/pair/).
 
 ## Install
 
