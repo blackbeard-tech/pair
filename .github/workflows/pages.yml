@@ -1,0 +1,44 @@
+name: pages
+# Publishes site/ to GitHub Pages (blackbeard-tech.github.io/pair). The icon and the screenshot are
+# copied from docs/ at deploy time, so the site never keeps its own copies of them.
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", "docs/icon.svg", "docs/img/paired.png", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+
+      - name: Assemble the site
+        run: |
+          mkdir _site
+          cp -R site/. _site/
+          cp docs/icon.svg docs/img/paired.png _site/
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with: { path: _site }
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { pages: write, id-token: write } # publish to Pages; the OIDC token proves the deploy came from this workflow
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

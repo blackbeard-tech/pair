@@ -93,6 +93,7 @@ cargo build --release --manifest-path server/Cargo.toml
 python3 -I server/tests/two_peers.py server/target/release/pair   # e2e over the public relay
 claude plugin validate plugin --strict
 claude plugin eval plugin --model haiku --ablation none -j 4 --trust-plugin --no-publish --max-cost-usd 1   # skill evals, mocked tools (~$0.10)
+d=$(mktemp -d) && cp -R site/. docs/icon.svg docs/img/paired.png "$d" && python3 -m http.server -d "$d" 8000   # preview the website as pages.yml assembles it
 ```
 
 Try a local build in Claude Code: start it with `PAIR_BIN=<path to server/target/release/pair>`.
@@ -115,6 +116,8 @@ then `twist wormhole-mailbox --port tcp:4777:interface=127.0.0.1`): use it to te
   `pair.cmd` + `fetch.ps1` for Windows). Launchers download the release binary named in the
   `# release vX` header of `plugin/checksums.txt` and refuse it unless its sha256 matches.
 - Docs: `docs/threat-model.md` (keep it current when behaviour changes).
+- `site/`: the static webpage (blackbeard-tech.github.io/pair), published by `pages.yml` on pushes to main. No build step,
+  no JS needed, no third-party requests (CSP allows only 'self'). The icon and screenshot come from `docs/` at deploy time.
 
 ## Releasing (each step needs the owner's go)
 
@@ -149,6 +152,9 @@ confirmations); ad-hoc pushes and merges keep their ask rules. The steps below a
   Plugin monitors only start in the terminal CLI. Hook and monitor commands are `cd "${CLAUDE_PLUGIN_ROOT}/scripts"; ./pair …; exit $LASTEXITCODE`: one
   string that sh, Git Bash and PowerShell all run (PowerShell, which Claude Code uses on Windows without Git Bash,
   resolves `./pair` to `pair.cmd`; `exit $LASTEXITCODE` keeps exit code 2). Exec form can't start a `.cmd`.
+- The website holds no release-specific details (limits, versions, hosts, platforms, planned features): those live in
+  the README, which the site links to. When behaviour changes, check the site's few general claims still hold; when
+  `docs/img/paired.png` changes, check its alt text in `site/index.html`.
 - CI minutes matter: Rust CI is Linux-only and path-filtered; macOS/Windows only via manual dispatch or releases.
 - All GitHub Actions pinned by commit SHA; Dependabot has a 7-day cooldown.
 - Track work in beads (`bd`), not markdown TODOs.
