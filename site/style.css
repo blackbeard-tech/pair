@@ -34,6 +34,7 @@
   --term: #0c1f15;
   --term-line: #2a4a38;
   --ok: #8fd17f;
+  --turn: rgb(210 207 72 / 0.75);
 
   --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
   --body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
@@ -230,29 +231,165 @@ h1 {
 .term-lines li { color: var(--band-soft); }
 .term-lines .ok { color: var(--ok); }
 .term-lines .peer { color: var(--pear); font-weight: 600; }
+.keys + .visually-hidden { user-select: none; } /* typed commands: copy the visible keys, once */
 
-/* The pairing plays out once on load and then stays. */
+/* The pairing loops, turn by turn. What a person types appears key by key; what Claude Code,
+   Claude or pair prints fades in; the terminal whose turn it is lights up. Times below are
+   seconds of a 14.5s cycle, generated from one timeline: change the times, not the percentages. */
 @media (prefers-reduced-motion: no-preference) {
-  .term-lines li { animation: appear 0.45s ease-out both; }
-  .term-lines .l1 { animation-delay: 0.3s; }
-  .term-lines .l2 { animation-delay: 1.0s; }
-  .term-lines .l3 { animation-delay: 1.9s; }
-  .term-lines .l4 { animation-delay: 2.5s; }
-  .term-lines .l5 { animation-delay: 3.2s; }
-  .term-lines .l6 { animation-delay: 4.0s; }
-  .term-lines .l7 { animation-delay: 4.9s; }
-  .term-lines .l8 { animation-delay: 5.6s; }
-  .term-lines .l9 { animation-delay: 6.3s; }
-  .term-lines .l10 { animation-delay: 7.0s; }
-  .term-lines .code { animation: glow 1.4s ease-out 1.2s both; }
+  .term-lines .l2 { animation: line2 14.5s linear infinite; }
+  .term-lines .l4 { animation: line4 14.5s linear infinite; }
+  .term-lines .l5 { animation: line5 14.5s linear infinite; }
+  .term-lines .l6 { animation: line6 14.5s linear infinite; }
+  .term-lines .l8 { animation: line8 14.5s linear infinite; }
+  .term-lines .l9 { animation: line9 14.5s linear infinite; }
+  .term-lines .l10 { animation: line10 14.5s linear infinite; }
+  .term-lines .l1.typed { animation: hold1 14.5s linear infinite; }
+  .term-lines .l3.typed { animation: hold3 14.5s linear infinite; }
+  .term-lines .l7.typed { animation: hold7 14.5s linear infinite; }
+  .term-lines .k { animation-duration: 14.5s; animation-timing-function: linear; animation-iteration-count: infinite; animation-fill-mode: backwards; }
+  .term-lines .k1 .k { animation-name: key1; }
+  .term-lines .k3 .k { animation-name: key3; }
+  .term-lines .k5 .k { animation-name: key5; }
+  .term-lines .k7 .k { animation-name: key7; }
+  .keys .k:nth-child(2) { animation-delay: 0.055s; }
+  .keys .k:nth-child(3) { animation-delay: 0.110s; }
+  .keys .k:nth-child(4) { animation-delay: 0.165s; }
+  .keys .k:nth-child(5) { animation-delay: 0.220s; }
+  .keys .k:nth-child(6) { animation-delay: 0.275s; }
+  .keys .k:nth-child(7) { animation-delay: 0.330s; }
+  .keys .k:nth-child(8) { animation-delay: 0.385s; }
+  .keys .k:nth-child(9) { animation-delay: 0.440s; }
+  .keys .k:nth-child(10) { animation-delay: 0.495s; }
+  .keys .k:nth-child(11) { animation-delay: 0.550s; }
+  .keys .k:nth-child(12) { animation-delay: 0.605s; }
+  .keys .k:nth-child(13) { animation-delay: 0.660s; }
+  .keys .k:nth-child(14) { animation-delay: 0.715s; }
+  .keys .k:nth-child(15) { animation-delay: 0.770s; }
+  .keys .k:nth-child(16) { animation-delay: 0.825s; }
+  .keys .k:nth-child(17) { animation-delay: 0.880s; }
+  .keys .k:nth-child(18) { animation-delay: 0.935s; }
+  .keys .k:nth-child(19) { animation-delay: 0.990s; }
+  .keys .k:nth-child(20) { animation-delay: 1.045s; }
+  .keys .k:nth-child(21) { animation-delay: 1.100s; }
+  .keys .k:nth-child(22) { animation-delay: 1.155s; }
+  .keys .k:nth-child(23) { animation-delay: 1.210s; }
+  .keys .k:nth-child(24) { animation-delay: 1.265s; }
+  .keys .k:nth-child(25) { animation-delay: 1.320s; }
+  .keys .k:nth-child(26) { animation-delay: 1.375s; }
+  .keys .k:nth-child(27) { animation-delay: 1.430s; }
+  .keys .k:nth-child(28) { animation-delay: 1.485s; }
+  .keys .k:nth-child(29) { animation-delay: 1.540s; }
+  .keys .k:nth-child(30) { animation-delay: 1.595s; }
+  .keys .k:nth-child(31) { animation-delay: 1.650s; }
+  .keys .k:nth-child(32) { animation-delay: 1.705s; }
+  .keys .k:nth-child(33) { animation-delay: 1.760s; }
+  .keys .k:nth-child(34) { animation-delay: 1.815s; }
+  .keys .k:nth-child(35) { animation-delay: 1.870s; }
+  .duo .term:nth-child(1) { animation: turn-you 14.5s linear infinite; }
+  .duo .term:nth-child(2) { animation: turn-them 14.5s linear infinite; }
+  .term-lines .code { animation: glow 14.5s ease-out infinite; }
 }
-@keyframes appear {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: none; }
+@keyframes line2 {
+  0%, 8.276% { opacity: 0; transform: translateY(4px); }
+  11.379%, 89.655% { opacity: 1; transform: none; }
+  93.103%, 100% { opacity: 0; transform: none; }
+}
+@keyframes line4 {
+  0%, 24.828% { opacity: 0; transform: translateY(4px); }
+  27.931%, 89.655% { opacity: 1; transform: none; }
+  93.103%, 100% { opacity: 0; transform: none; }
+}
+@keyframes line5 {
+  0%, 30.345% { opacity: 0; transform: translateY(4px); }
+  33.448%, 89.655% { opacity: 1; transform: none; }
+  93.103%, 100% { opacity: 0; transform: none; }
+}
+@keyframes line6 {
+  0%, 39.31% { opacity: 0; transform: translateY(4px); }
+  42.414%, 89.655% { opacity: 1; transform: none; }
+  93.103%, 100% { opacity: 0; transform: none; }
+}
+@keyframes line8 {
+  0%, 61.379% { opacity: 0; transform: translateY(4px); }
+  64.483%, 89.655% { opacity: 1; transform: none; }
+  93.103%, 100% { opacity: 0; transform: none; }
+}
+@keyframes line9 {
+  0%, 66.897% { opacity: 0; transform: translateY(4px); }
+  70%, 89.655% { opacity: 1; transform: none; }
+  93.103%, 100% { opacity: 0; transform: none; }
+}
+@keyframes line10 {
+  0%, 73.103% { opacity: 0; transform: translateY(4px); }
+  76.207%, 89.655% { opacity: 1; transform: none; }
+  93.103%, 100% { opacity: 0; transform: none; }
+}
+@keyframes hold1 {
+  0%, 2.759% { opacity: 0; }
+  2.828%, 89.655% { opacity: 1; }
+  93.103%, 100% { opacity: 0; }
+}
+@keyframes hold3 {
+  0%, 15.172% { opacity: 0; }
+  15.241%, 89.655% { opacity: 1; }
+  93.103%, 100% { opacity: 0; }
+}
+@keyframes hold7 {
+  0%, 45.517% { opacity: 0; }
+  45.586%, 89.655% { opacity: 1; }
+  93.103%, 100% { opacity: 0; }
+}
+}
+@keyframes key1 {
+  0%, 2.759% { opacity: 0; }
+  2.828%, 93.103% { opacity: 1; }
+  93.172%, 100% { opacity: 0; }
+}
+@keyframes key3 {
+  0%, 15.172% { opacity: 0; }
+  15.241%, 93.103% { opacity: 1; }
+  93.172%, 100% { opacity: 0; }
+}
+@keyframes key5 {
+  0%, 34.483% { opacity: 0; }
+  34.552%, 93.103% { opacity: 1; }
+  93.172%, 100% { opacity: 0; }
+}
+@keyframes key7 {
+  0%, 45.517% { opacity: 0; }
+  45.586%, 93.103% { opacity: 1; }
+  93.172%, 100% { opacity: 0; }
+}
+@keyframes turn-you {
+  0% { border-color: var(--term-line); box-shadow: none; }
+  2.759% { border-color: var(--term-line); box-shadow: none; }
+  4.483%, 15.172% { border-color: var(--turn); box-shadow: 0 0 0 1px var(--turn); }
+  16.897% { border-color: var(--term-line); box-shadow: none; }
+  30.345% { border-color: var(--term-line); box-shadow: none; }
+  32.069%, 45.517% { border-color: var(--turn); box-shadow: 0 0 0 1px var(--turn); }
+  47.241% { border-color: var(--term-line); box-shadow: none; }
+  61.379% { border-color: var(--term-line); box-shadow: none; }
+  63.103%, 73.103% { border-color: var(--turn); box-shadow: 0 0 0 1px var(--turn); }
+  74.828% { border-color: var(--term-line); box-shadow: none; }
+  100% { border-color: var(--term-line); box-shadow: none; }
+}
+@keyframes turn-them {
+  0% { border-color: var(--term-line); box-shadow: none; }
+  15.172% { border-color: var(--term-line); box-shadow: none; }
+  16.897%, 30.345% { border-color: var(--turn); box-shadow: 0 0 0 1px var(--turn); }
+  32.069% { border-color: var(--term-line); box-shadow: none; }
+  39.31% { border-color: var(--term-line); box-shadow: none; }
+  41.034%, 61.379% { border-color: var(--turn); box-shadow: 0 0 0 1px var(--turn); }
+  63.103% { border-color: var(--term-line); box-shadow: none; }
+  73.103% { border-color: var(--term-line); box-shadow: none; }
+  74.828%, 89.655% { border-color: var(--turn); box-shadow: 0 0 0 1px var(--turn); }
+  91.379% { border-color: var(--term-line); box-shadow: none; }
+  100% { border-color: var(--term-line); box-shadow: none; }
 }
 @keyframes glow {
-  from { box-shadow: 0 0 0 0 rgb(210 207 72 / 0.7); }
-  to { box-shadow: 0 0 0 10px rgb(210 207 72 / 0); }
+  0%, 9.655% { box-shadow: 0 0 0 0 rgb(210 207 72 / 0.7); }
+  19.31%, 100% { box-shadow: 0 0 0 10px rgb(210 207 72 / 0); }
 }
 
 /* ---------- How it works ---------- */

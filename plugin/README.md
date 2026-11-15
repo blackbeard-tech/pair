@@ -6,7 +6,8 @@ and the two agents can message each other and exchange files you approve, end-to
 [magic-wormhole](https://magic-wormhole.readthedocs.io/).
 
 Built by [Blackbeard Technologies](https://blackbeard.tech). Source, full documentation and threat model:
-[github.com/blackbeard-tech/pair](https://github.com/blackbeard-tech/pair).
+[github.com/blackbeard-tech/pair](https://github.com/blackbeard-tech/pair). Website:
+[blackbeard-tech.github.io/pair](https://blackbeard-tech.github.io/pair/).
 
 ![Claude shows the pairing code; when a colleague enters it, Claude Code's confirmation dialog asks whether to pair, and the pair pane shows Accept and Decline.](https://raw.githubusercontent.com/blackbeard-tech/pair/main/docs/img/pairing.png)
 
