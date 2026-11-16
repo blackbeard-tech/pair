@@ -15,14 +15,16 @@ cp -R "$repo/mcpb/." "$stage/"
 cp "$repo/plugin/.claude-plugin/icon.png" "$stage/icon.png"
 perl -pi -e "s/\"version\": \"0.0.0\"/\"version\": \"$v\"/" "$stage/manifest.json"
 
-assets=(pair-macos-arm64 pair-macos-x64 pair-windows-x64.exe)
+# Claude Desktop runs the server binary itself (a shell launcher fails there: "Operation not permitted"), so macOS
+# gets the universal binary.
+assets=(pair-macos-universal pair-windows-x64.exe)
 gh release download "v$v" -R blackbeard-tech/pair -D "$stage/server" -p checksums.txt "${assets[@]/#/-p}"
 sum=(shasum -a 256)
 command -v sha256sum >/dev/null && sum=(sha256sum)
 (cd "$stage/server" && grep -E " ($(IFS='|'; echo "${assets[*]}"))\$" checksums.txt | "${sum[@]}" -c -) \
   || { echo "checksum mismatch: refusing to pack" >&2; exit 1; }
 rm "$stage/server/checksums.txt"
-chmod +x "$stage/server/pair.sh" "$stage/server"/pair-macos-*
+chmod +x "$stage/server/pair-macos-universal"
 
 mkdir -p "$repo/dist"
 mcpb=@anthropic-ai/mcpb@2.1.2 # pinned: it builds what users install
