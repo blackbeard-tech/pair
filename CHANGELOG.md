@@ -6,7 +6,7 @@ What changed in each release of pair, newest first. Install or update in Claude 
 From 0.1.6 the plugin and its binary always share one version number. Before that they were numbered
 separately; each early entry names the plugin versions that used that binary.
 
-## Unreleased
+## 0.1.19 (2026-11-16)
 
 - The Claude Desktop extension now starts on macOS. 0.1.18's failed with "Operation not permitted": Claude Desktop
   won't let the shell script it starts read a launcher, so the extension now runs a universal macOS binary (both chips,
