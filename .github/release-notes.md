@@ -16,6 +16,8 @@ these files directly.
 |---|---|
 | `pair-macos-arm64` | macOS on Apple Silicon (M1 and later) |
 | `pair-macos-x64` | macOS on Intel |
+| `pair-macos-universal` | macOS, both chips in one file (used by the Claude Desktop extension) |
+| `pair-X.Y.Z.mcpb` | Claude Desktop extension: open it to install |
 | `pair-windows-x64.exe` | Windows 10 and 11, x64 (also runs on Windows on Arm) |
 | `pair-linux-x64` | Linux, x64 (static, any distribution) |
 | `pair-linux-arm64` | Linux, arm64 (static, any distribution) |

@@ -22,10 +22,10 @@
   "privacy_policies": ["https://github.com/blackbeard-tech/pair/blob/main/docs/privacy.md"],
   "server": {
     "type": "binary",
-    "entry_point": "server/pair.sh",
+    "entry_point": "server/pair-macos-universal",
     "mcp_config": {
-      "command": "/bin/sh",
-      "args": ["${__dirname}/server/pair.sh"],
+      "command": "${__dirname}/server/pair-macos-universal",
+      "args": [],
       "env": {
         "PAIR_DEFAULT_TRUST": "${user_config.default_trust}"
       },
