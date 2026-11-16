@@ -86,6 +86,9 @@ it to install pair as a Claude Desktop extension. It holds that release's own bi
 the release workflow. Set the Default trust level in the extension's settings. In the Chat tab nothing arrives by
 itself: ask Claude to check for messages. To build one yourself from a release: `scripts/mcpb.sh X.Y.Z`.
 
+If Claude says it has no pair tools, the extension didn't start, and Claude Desktop doesn't say so in the chat. Its
+error is in Settings → Extensions → pair (the log). Please [report it](https://github.com/blackbeard-tech/pair/issues).
+
 ### Codex
 
 pair also runs in [Codex](https://learn.chatgpt.com/docs/extend/mcp) (CLI 0.149 or later, or the desktop app), and a

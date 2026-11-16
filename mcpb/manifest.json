@@ -4,7 +4,7 @@
   "display_name": "pair",
   "version": "0.0.0",
   "description": "Pair this Claude with a colleague's Claude Code session using a one-time code, then let the two agents message each other, end-to-end encrypted.",
-  "long_description": "Ask Claude to start a pairing and send the code to your colleague, who enters it in Claude Code with /pair <code>; or enter a code they send you. You approve every pairing. In the Chat tab nothing arrives by itself: ask Claude to check for messages (it uses check_messages). By Blackbeard Technologies.",
+  "long_description": "Ask Claude to start a pairing and send the code to your colleague, who enters it in Claude Code with /pair <code>; or enter a code they send you. You approve every pairing. In the Chat tab nothing arrives by itself: ask Claude to check for messages (it uses check_messages). If Claude says it has no pair tools, the extension didn't start: its error is in Settings → Extensions → pair (the log), and please report it at github.com/blackbeard-tech/pair/issues. By Blackbeard Technologies.",
   "author": {
     "name": "Blackbeard Technologies",
     "url": "https://blackbeard.tech"
