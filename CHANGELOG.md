@@ -14,6 +14,9 @@ separately; each early entry names the plugin versions that used that binary.
   `check_messages`, and "Hand to Claude" passes new ones to Claude right away (Desktop asks you to allow it, or puts
   the text in your message box). Desktop can't start a turn by itself, so nothing reaches Claude unless you write or
   click. Only offered to apps that show MCP Apps; Claude Code is unchanged.
+- The Desktop pane works like Claude Code's: start a pairing or enter a code, Accept or Decline, chat (sent as you),
+  received files and sending a file, Unpair, and a link when a newer pair is out. Desktop runs two pair servers per
+  chat; one now forwards to the other, so Claude and the pane see the same pairing.
 
 ## 0.1.19 (2026-11-16)
 
