@@ -47,6 +47,9 @@ assert not r.get("isError"), r
 time.sleep(0.5)
 assert a.tool("pair_inbox", {"since": 0})["structuredContent"]["state"] == "Idle"
 print("unpair from B ended A's pairing")
+r = b.tool("reveal_file", {"path": "/etc/hosts"})
+assert r["isError"] and "Only received files" in r["content"][0]["text"], r
+print("reveal_file refuses a path outside the received folder")
 # Without PAIR_DESKTOP (any other pair server of this user) a server never joins Desktop's pairing.
 env.pop("PAIR_DESKTOP")
 c = Server()
