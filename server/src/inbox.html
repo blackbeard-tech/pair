@@ -70,6 +70,7 @@
     <p class="dim" id="nochat">No messages yet.</p>
     <div id="rows"></div>
     <div id="ask" class="actions" hidden><button class="btn primary" id="accept">Accept</button><button class="btn" id="decline">Decline</button></div>
+    <p class="dim" id="asknote" hidden></p>
     <form id="chatform" hidden><input id="chatin" placeholder="Type and press Enter" autocomplete="off"><button class="btn">send</button></form>
     <p class="dim" id="chathint" hidden></p>
   </div>
@@ -238,8 +239,16 @@ $("tab-chat").onclick = () => { tab = "chat"; render(); };
 $("tab-files").onclick = () => { tab = "files"; render(); };
 async function answer(name) {
   $("accept").disabled = $("decline").disabled = true;
-  try { $("nochat").textContent = firstText(await tool(name)); $("nochat").hidden = false; }
-  catch (err) { $("nochat").textContent = `Couldn't answer here: ask Claude to ${name === "pair_accept" ? "accept" : "decline"}.`; }
+  // pair_accept asks the user in a dialog of Claude's (where it can), and answers once they have.
+  $("asknote").textContent = name === "pair_accept" ? "Confirm in the dialog…" : "Declining…";
+  $("asknote").hidden = false;
+  try {
+    const r = await tool(name);
+    $("asknote").textContent = r.isError ? firstText(r) : "";
+  } catch (err) {
+    $("asknote").textContent = `Couldn't answer here: ask Claude to ${name === "pair_accept" ? "accept" : "decline"}.`;
+  }
+  $("asknote").hidden = !$("asknote").textContent;
   $("accept").disabled = $("decline").disabled = false;
   poll();
 }
