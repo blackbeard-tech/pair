@@ -6,6 +6,15 @@ What changed in each release of pair, newest first. Install or update in Claude 
 From 0.1.6 the plugin and its binary always share one version number. Before that they were numbered
 separately; each early entry names the plugin versions that used that binary.
 
+## Unreleased
+
+- Claude Desktop: a pair inbox. Once paired, Claude opens it (the new `pair_inbox` tool, an MCP App): it sits beside
+  the chat where Desktop has the side panel, in the chat otherwise, and shows the peer's messages as they arrive. It
+  keeps the latest ones in Claude's context, so Claude sees them on your next message without calling
+  `check_messages`, and "Hand to Claude" passes new ones to Claude right away (Desktop asks you to allow it, or puts
+  the text in your message box). Desktop can't start a turn by itself, so nothing reaches Claude unless you write or
+  click. Only offered to apps that show MCP Apps; Claude Code is unchanged.
+
 ## 0.1.19 (2026-11-16)
 
 - The Claude Desktop extension now starts on macOS. 0.1.18's failed with "Operation not permitted": Claude Desktop
