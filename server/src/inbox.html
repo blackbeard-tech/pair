@@ -7,6 +7,7 @@
      (ui/message; Claude asks the user first). Chat and files go out through send_to_peer / send_file. Peer text is
      only ever set as textContent. -->
 <style>
+  [hidden] { display: none !important; } /* or a class's display (flex) would show hidden elements */
   :root { color-scheme: light dark; --accent: #4fc9b0; --soon: #e8b93a;
     --dim: var(--color-text-secondary, GrayText); --line: var(--color-border-tertiary, rgba(128,128,128,.25)); }
   body { margin: 0; padding: 14px; font: 13px/1.45 var(--font-sans, system-ui, sans-serif);
@@ -66,9 +67,9 @@
     <button role="tab" id="tab-files" aria-selected="false">Files (0)</button>
   </div>
   <div id="chat">
-    <div id="ask" class="actions" hidden><button class="btn primary" id="accept">Accept</button><button class="btn" id="decline">Decline</button></div>
     <p class="dim" id="nochat">No messages yet.</p>
     <div id="rows"></div>
+    <div id="ask" class="actions" hidden><button class="btn primary" id="accept">Accept</button><button class="btn" id="decline">Decline</button></div>
     <form id="chatform" hidden><input id="chatin" placeholder="Type and press Enter" autocomplete="off"><button class="btn">send</button></form>
     <p class="dim" id="chathint" hidden></p>
   </div>
@@ -136,13 +137,16 @@ async function hand(e) {
 }
 
 function render() {
-  const s = status, peer = s.peer ? shortPeer(s.peer) : "your colleague", host = (s.peer || "").split(" · ")[0];
+  // The peer's name is known from their pair request on; before that the pane says what it's waiting for instead.
+  const s = status, known = !!s.peer, peer = known ? shortPeer(s.peer) : "", host = (s.peer || "").split(" · ")[0];
   const idle = s.state === "Idle";
   $("empty").hidden = !idle;
   $("main").hidden = !$("empty").hidden;
 
   const pl = $("peerline"); pl.replaceChildren();
   if (idle) pl.append(el("span", "dim", "Not paired"));
+  else if (!known) pl.append(el("span", "soon", "● "), el("span", "dim", s.initiator
+    ? "Waiting for someone to enter your code" : "Connecting: waiting for them to accept"));
   else {
     pl.append(el("span", s.state === "Paired" ? "accent" : "soon", "● "), el("b", "", peer));
     if (host) pl.append(el("span", "dim", " · " + host));
@@ -193,11 +197,11 @@ function render() {
     rows.append(r);
   }
   $("chatform").hidden = idle || s.state === "Pending" || s.state === "Waiting";
-  $("chatin").placeholder = `Message ${peer} (sent as you, not via Claude)`;
-  $("chathint").hidden = idle;
-  $("chathint").textContent = "Messages also reach Claude on your next message. → Claude hands one over now.";
+  $("chatin").placeholder = `Message ${peer || "them"}`;
+  $("chathint").hidden = s.state !== "Paired";
+  $("chathint").textContent = "What you type here goes as you, not via Claude. Their messages reach Claude on your next message; → Claude hands one over now.";
 
-  $("recvhead").textContent = `Received from ${peer}`;
+  $("recvhead").textContent = known ? `Received from ${peer}` : "Received";
   $("norecv").hidden = received.length > 0;
   const recv = $("recv"); recv.replaceChildren();
   for (const f of received.slice(-8)) {
@@ -211,7 +215,9 @@ function render() {
   $("sentsec").hidden = !sentFiles.length;
   const sent = $("sent"); sent.replaceChildren();
   for (const f of sentFiles.slice(-8)) sent.append(el("div", "", `▤ ${f.name} · sent ${hhmm(f.at)} · ${f.result}`));
-  $("sharedtext").textContent = `Put files and folders up for ${peer} to fetch when they need them, and browse what ${peer} shares with you.`;
+  $("sharedtext").textContent = known
+    ? `Put files and folders up for ${peer} to fetch when they need them, and browse what ${peer} shares with you.`
+    : "Put files and folders up for the person you pair with, and browse what they share with you.";
 }
 
 async function poll() {
@@ -242,7 +248,7 @@ async function begin(name, args) {
   try {
     const r = await tool(name, args), text = firstText(r), code = (text.match(/\b\d+-[a-z]+-[a-z]+\b/) || [])[0];
     startText = r.isError ? text.replace(/^pair · \S+\s*/, "")
-      : name === "pair_start" && code ? `Your code: ${code}\nSend it to your colleague: they run /pair ${code}, or enter it in their pair pane. It works once and expires in a couple of minutes.`
+      : name === "pair_start" && code ? `Your code: ${code}\nSend it to the person you're pairing with: they run /pair ${code}, or enter it in their pair pane. It works once and expires in a couple of minutes.`
       : "Connecting… they approve it on their side.";
   }
   catch (err) { startText = "Couldn't reach pair. Ask Claude instead."; }
