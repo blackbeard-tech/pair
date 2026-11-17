@@ -281,7 +281,9 @@ fn push(meta: Value, content: &str) {
         if h.len() >= INBOX_MAX {
             h.pop_front();
         }
-        h.push_back((n, ev.clone()));
+        let mut kept = ev.clone();
+        kept["at"] = json!(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64);
+        h.push_back((n, kept));
         let mut q = INBOX.lock().unwrap();
         if q.len() >= INBOX_MAX {
             q.remove(0);
@@ -967,8 +969,12 @@ fn events_since(h: &VecDeque<(u64, Value)>, since: u64) -> (u64, Vec<Value>) {
         .iter()
         .filter(|(n, _)| *n > since)
         .map(|(n, e)| {
-            let m = &e["meta"];
-            json!({"seq": n, "kind": m["kind"], "peer": m["peer"], "trust": m["trust"], "content": e["content"]})
+            // The meta (kind, peer, trust, via; a file's name, size, path), plus number, time and text.
+            let mut o = e["meta"].as_object().cloned().unwrap_or_default();
+            o.insert("seq".into(), json!(n));
+            o.insert("at".into(), e["at"].clone());
+            o.insert("content".into(), e["content"].clone());
+            Value::Object(o)
         })
         .collect();
     (last, events)
@@ -2340,7 +2346,7 @@ mod tests {
         let (last, ev) = events_since(&h, 5);
         assert_eq!(last, 7);
         assert_eq!(ev.iter().map(|e| e["seq"].as_u64().unwrap()).collect::<Vec<_>>(), [6, 7]);
-        assert_eq!(ev[0]["content"], "m6");
+        assert_eq!((&ev[0]["content"], &ev[0]["kind"], &ev[0]["peer"]), (&json!("m6"), &json!("message"), &json!("p")));
         assert_eq!(events_since(&h, 7).1.len(), 0);
         assert_eq!(events_since(&h, 99).1.len(), 3); // the server restarted under the app: everything again
         assert_eq!(events_since(&VecDeque::new(), 0), (0, vec![]));
