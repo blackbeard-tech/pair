@@ -91,6 +91,8 @@ cargo test --manifest-path server/Cargo.toml          # unit tests
 cargo clippy --release --manifest-path server/Cargo.toml -- -D warnings
 cargo build --release --manifest-path server/Cargo.toml
 python3 -I server/tests/two_peers.py server/target/release/pair   # e2e over the public relay
+python3 -I server/tests/desktop_two_servers.py server/target/release/pair   # Desktop's two servers share one pairing
+server/tests/pane/shot.sh /tmp/shots   # screenshot the Desktop pane (server/src/inbox.html) in each state; look at them
 claude plugin validate plugin --strict
 claude plugin eval plugin --model haiku --ablation none -j 4 --trust-plugin --no-publish --max-cost-usd 1   # skill evals, mocked tools (~$0.10)
 d=$(mktemp -d) && cp -R site/. docs/icon.svg docs/img/paired.png "$d" && python3 -m http.server -d "$d" 8000   # preview the website as pages.yml assembles it

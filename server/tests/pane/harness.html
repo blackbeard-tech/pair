@@ -1,0 +1,65 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>pair pane harness</title>
+<!-- Plays Claude Desktop for server/src/inbox.html: answers its ui/* requests and tools/call from a scripted pair
+     server, and replays a scenario (?s=name), clicking in the pane as a user would. shot.sh screenshots each one. -->
+<!-- 400 px: a narrow side panel (Desktop opens it at about half the chat area, at least 320 px). -->
+<style>body { margin: 0; background: #262624; } iframe { border: 0; width: 400px; height: 100vh; display: block; }</style>
+<iframe id="pane"></iframe>
+<script>
+"use strict";
+const scenario = new URLSearchParams(location.search).get("s") || "idle";
+const PEER = "lloyd@Lloyds-Mac-mini · Lloyd Blackbeard · lloyd@example.com";
+const t0 = Date.parse("2026-11-17T23:20:00Z");
+const ev = (seq, kind, extra) => ({ seq, kind, peer: PEER, trust: "read-only", at: t0 + seq * 60000, content: "", ...extra });
+// The pair server, as pair_inbox reports it.
+let server = { state: "Idle", peer: "", trust: "read-only", initiator: false, events: [], update: null, version: "0.1.20" };
+const set = s => { server = { ...server, ...s }; };
+const scenarios = {
+  idle: () => {},
+  update: () => set({ update: { version: "0.1.21", url: "https://github.com/blackbeard-tech/pair/releases/tag/v0.1.21" } }),
+  // The owner's sequence: not paired, then Start pairing.
+  started: () => click("start"),
+  // Someone entered the code: their pair request.
+  request: () => set({ state: "Pending", initiator: true, peer: PEER, events: [ev(1, "pair_request", { content: "Someone entered your code." })] }),
+  joining: () => { set({}); setTimeout(() => { const f = pane().getElementById("joinin"); f.value = "7-amber-falcon"; pane().getElementById("joinform").requestSubmit(); }, 300); },
+  paired: () => set({ state: "Paired", initiator: true, peer: PEER, events: [
+    ev(1, "pair_request"), ev(2, "paired", { content: "Paired." }),
+    ev(3, "message", { content: "Hi, can you look at the failing test in server/src/main.rs?" }),
+    ev(4, "file", { name: "trace.log", size: 48213, path: "/Users/you/received/trace.log" }),
+    ev(5, "message", { content: "Thanks, that fixed it." })] }),
+  files: () => { scenarios.paired(); setTimeout(() => pane().getElementById("tab-files").click(), 300); },
+};
+const pane = () => document.getElementById("pane").contentDocument;
+const click = id => setTimeout(() => pane().getElementById(id).click(), 300);
+
+function answer(m) {
+  const reply = result => document.getElementById("pane").contentWindow.postMessage({ jsonrpc: "2.0", id: m.id, result }, "*");
+  const text = t => ({ content: [{ type: "text", text: t }], isError: false });
+  if (m.method === "ui/initialize") return reply({ protocolVersion: "2025-11-21", hostCapabilities: {}, hostContext: {} });
+  if (m.method !== "tools/call") return reply({});
+  const { name, arguments: a } = m.params;
+  if (name === "pair_inbox") {
+    const events = server.events.filter(e => e.seq > (a.since || 0));
+    return reply({ ...text(""), structuredContent: { ...server, events, seq: server.events.length } });
+  }
+  if (name === "pair_start") { set({ state: "Waiting", initiator: true }); return reply(text("pair · https://blackbeard.tech\nPairing code: 4-inventive-cranky (valid 2 minutes).\nLive delivery: …")); }
+  if (name === "pair_join") { set({ state: "Waiting", initiator: false }); return reply(text("pair · https://blackbeard.tech\nConnecting (trust: read-only).")); }
+  reply(text("ok"));
+}
+addEventListener("message", e => { const m = e.data; if (m && m.jsonrpc === "2.0" && m.id !== undefined && m.method) answer(m); });
+fetch("/server/src/inbox.html").then(r => r.text()).then(html => {
+  const f = document.getElementById("pane");
+  f.onload = () => {
+    setTimeout(scenarios[scenario], 200);
+    // For shot.sh --dump: page and pane widths, and anything wider than the pane.
+    setTimeout(() => {
+      const d = pane(), w = d.documentElement.clientWidth;
+      const wide = [...d.querySelectorAll("body *")].filter(e => e.getBoundingClientRect().right > w + 0.5 && e.offsetParent)
+        .map(e => `${e.tagName.toLowerCase()}#${e.id}.${e.className}:${Math.round(e.getBoundingClientRect().right)}`);
+      document.body.dataset.measure = JSON.stringify({ window: innerWidth, pane: w, scroll: d.documentElement.scrollWidth, wide });
+    }, 1500);
+  };
+  f.srcdoc = html;
+});
+</script>
