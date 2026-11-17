@@ -126,10 +126,14 @@ fn apps() -> bool {
 /// Claude Desktop runs two pair servers for one chat: Claude's tool calls reach one, the pair pane's (an MCP App) the
 /// other. One runs every pairing (the engine: the lower pid while both live, named in `engine`, refreshed every
 /// second); the other forwards each tool call to it through this owner-only folder: calls.jsonl in, results/<id>.json
-/// out. So Claude and the pane act on the same pairing.
+/// out. So Claude and the pane act on the same pairing. Only for the Desktop extension (its manifest sets
+/// PAIR_DESKTOP=1): any other pair server of this user, such as one in another app that shows MCP Apps, or a test,
+/// must never join Desktop's pairing.
 fn desktop_dir() -> Option<PathBuf> {
-    (apps() && SESSION_DIR.get().and_then(|d| d.as_deref()).is_none())
-        .then(|| std::env::temp_dir().join(format!("pair-desktop-{}", whoami())))
+    (apps()
+        && std::env::var("PAIR_DESKTOP").as_deref() == Ok("1")
+        && SESSION_DIR.get().and_then(|d| d.as_deref()).is_none())
+    .then(|| std::env::temp_dir().join(format!("pair-desktop-{}", whoami())))
 }
 
 /// The user name, for the shared folder's name (temp dirs are per user on macOS and Windows, not always on Linux).

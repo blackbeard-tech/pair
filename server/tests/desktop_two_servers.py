@@ -7,7 +7,7 @@ import json, os, subprocess, sys, tempfile, time
 exe = sys.argv[1]
 tmp = tempfile.mkdtemp()
 env = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_CODE_SESSION_ID", "PAIR_DATA")}
-env.update(TMPDIR=tmp, TEMP=tmp, TMP=tmp)
+env.update(TMPDIR=tmp, TEMP=tmp, TMP=tmp, PAIR_DESKTOP="1")  # a temp dir of its own: never the real Desktop's
 INIT = {"protocolVersion": "2025-06-18", "clientInfo": {"name": "claude-ai", "version": "1"},
         "capabilities": {"extensions": {"io.modelcontextprotocol/ui": {"mimeTypes": ["text/html;profile=mcp-app"]}}}}
 
@@ -47,6 +47,15 @@ assert not r.get("isError"), r
 time.sleep(0.5)
 assert a.tool("pair_inbox", {"since": 0})["structuredContent"]["state"] == "Idle"
 print("unpair from B ended A's pairing")
+# Without PAIR_DESKTOP (any other pair server of this user) a server never joins Desktop's pairing.
+env.pop("PAIR_DESKTOP")
+c = Server()
+assert c.tool("pair_start")["isError"] is False
+assert c.tool("pair_inbox", {"since": 0})["structuredContent"]["state"] == "Waiting"
+assert a.tool("pair_inbox", {"since": 0})["structuredContent"]["state"] == "Idle", "a non-Desktop server joined Desktop's pairing"
+c.tool("unpair")
+c.p.stdin.close()
+print("a server without PAIR_DESKTOP stays out")
 for s in (a, b):
     s.p.stdin.close()
     s.p.wait(timeout=10)
