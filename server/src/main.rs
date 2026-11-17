@@ -108,6 +108,18 @@ fn emit(out: &Out, v: &Value) {
 /// (e.g. claude -p). Oldest dropped past INBOX_MAX.
 static INBOX: Mutex<Vec<Value>> = Mutex::new(Vec::new());
 const INBOX_MAX: usize = 200;
+/// The same events, numbered and kept after check_messages takes them: what pair_inbox (Claude Desktop's inbox app)
+/// reads by number. Reading never clears it, so check_messages still has everything if the app's context never
+/// reaches Claude. Oldest dropped past INBOX_MAX.
+static HISTORY: Mutex<VecDeque<(u64, Value)>> = Mutex::new(VecDeque::new());
+/// The client renders MCP Apps (it announced the io.modelcontextprotocol/ui extension): Claude Desktop. Only then is
+/// pair_inbox offered, with its ui:// page.
+static APPS: OnceLock<bool> = OnceLock::new();
+const INBOX_UI: &str = "ui://pair/inbox.html";
+
+fn apps() -> bool {
+    *APPS.get().unwrap_or(&false)
+}
 
 fn event(kind: &str, peer: &str, content: &str) {
     push(json!({"kind": kind, "peer": peer}), content);
@@ -264,6 +276,12 @@ fn push(meta: Value, content: &str) {
     let quiet = ev["meta"]["kind"] == "message_delivered"; // for the pair pane only: no check_messages, no wake
     // Queue first: whoever reads the file and then calls check_messages must find it there.
     if !quiet {
+        let mut h = HISTORY.lock().unwrap();
+        let n = h.back().map_or(1, |(n, _)| n + 1);
+        if h.len() >= INBOX_MAX {
+            h.pop_front();
+        }
+        h.push_back((n, ev.clone()));
         let mut q = INBOX.lock().unwrap();
         if q.len() >= INBOX_MAX {
             q.remove(0);
@@ -649,6 +667,11 @@ fn delivery_note() -> String {
             .into();
     }
     let Some(dir) = SESSION_DIR.get().and_then(|d| d.as_deref()) else {
+        if apps() {
+            return "Live delivery: call pair_inbox now if you haven't: it opens the pair inbox beside the chat, which \
+                    shows replies as they arrive and passes them to you. check_messages also returns them."
+                .into();
+        }
         return "Live delivery: not available in this session; call check_messages to see replies.".into();
     };
     if monitor_alive(dir) {
@@ -932,6 +955,46 @@ fn check_messages(st: &St) -> Value {
     result_text(text, false)
 }
 
+/// History events numbered after `since`, and the newest number. A `since` past the newest (the app outlived a
+/// server restart) counts as 0.
+fn events_since(h: &VecDeque<(u64, Value)>, since: u64) -> (u64, Vec<Value>) {
+    let last = h.back().map_or(0, |(n, _)| *n);
+    let since = if since > last { 0 } else { since };
+    let events = h
+        .iter()
+        .filter(|(n, _)| *n > since)
+        .map(|(n, e)| {
+            let m = &e["meta"];
+            json!({"seq": n, "kind": m["kind"], "peer": m["peer"], "trust": m["trust"], "content": e["content"]})
+        })
+        .collect();
+    (last, events)
+}
+
+/// pair_inbox. Claude calls it bare, and Claude Desktop opens the inbox app (its ui:// page); the app then calls it
+/// with `since`, the last number it has, and gets newer events in structuredContent.
+fn inbox(st: &St, since: Option<u64>) -> Value {
+    let (phase, peer, trust) = {
+        let s = st.lock().unwrap();
+        (s.phase, s.peer.clone(), s.trust)
+    };
+    let (last, events) = {
+        let h = HISTORY.lock().unwrap();
+        match since {
+            Some(s) => events_since(&h, s),
+            None => (h.back().map_or(0, |(n, _)| *n), vec![]), // peer text reaches Claude only through the app
+        }
+    };
+    let text = match since {
+        Some(_) => format!("{} new event(s).", events.len()),
+        None => "The pair inbox is open: it shows the peer's messages as they arrive and passes them to you. \
+                 check_messages also returns them."
+            .into(),
+    };
+    json!({"content": [{"type": "text", "text": text}], "isError": false,
+        "structuredContent": {"state": format!("{phase:?}"), "peer": peer, "trust": trust, "seq": last, "events": events}})
+}
+
 fn cfg(name: &str) -> AppConfig<Value> {
     AppConfig {
         id: AppID::new(APP_ID),
@@ -1038,7 +1101,7 @@ fn tools() -> Value {
     // Claude Code shows this tool's confirmation dialog on every call, in every mode (denied in dontAsk), with no
     // "don't ask again": the dialog is the user's consent, independent of the plugin's hooks.
     let consent = json!({"anthropic/requiresUserInteraction": true});
-    json!([
+    let mut list = json!([
         {"name": "pair_start", "description": "Start pairing: returns a one-time code (single use, valid 2 minutes unless expires_in_minutes says otherwise) for your user to share with a colleague.",
          "inputSchema": {"type": "object", "properties": {"name": name, "trust": trust,
             "expires_in_minutes": {"type": "integer", "minimum": 1, "maximum": MAX_TTL_MIN,
@@ -1055,7 +1118,14 @@ fn tools() -> Value {
         {"name": "unpair", "description": "End the pairing.", "inputSchema": {"type": "object", "properties": {}}},
         {"name": "check_messages", "description": "Return pairing events not yet collected, and clear them. Events normally arrive by themselves; use this only when your user asks for news, or in a non-interactive (claude -p) session.",
          "inputSchema": {"type": "object", "properties": {}}}
-    ])
+    ]);
+    if apps() {
+        list.as_array_mut().unwrap().push(json!(
+            {"name": "pair_inbox", "description": "Open the pair inbox beside the chat: it shows the peer's messages as they arrive and passes them to you. Call it once you're paired.",
+             "inputSchema": {"type": "object", "properties": {"since": {"type": "integer", "description": "Used by the inbox itself; leave it unset."}}},
+             "_meta": {"ui": {"resourceUri": INBOX_UI}, "ui/resourceUri": INBOX_UI}}));
+    }
+    list
 }
 
 fn send(st: &St, msg: Value) -> bool {
@@ -1240,6 +1310,9 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
             let arrive =
                 if SESSION_DIR.get().and_then(|d| d.as_deref()).is_some() || CODEX_THREAD.lock().unwrap().is_some() {
                     "Their messages will arrive by themselves"
+                } else if apps() {
+                    "Call pair_inbox now: it opens the pair inbox beside the chat, which shows their messages as they \
+                     arrive and passes them to you (check_messages also returns them)"
                 } else {
                     "Nothing arrives by itself here: call check_messages each turn to see their messages"
                 };
@@ -1359,6 +1432,7 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
             result_text("Unpaired.", false)
         }
         ("check_messages", _) => check_messages(st),
+        ("pair_inbox", _) if apps() => inbox(st, a["since"].as_u64()),
         (t, ph) => result_text(format!("{t} is not available right now (state: {ph:?})."), true),
     }
 }
@@ -2192,14 +2266,34 @@ fn main() {
                 CONSENT_PROMPT.set(honours_consent_flag(client)).ok();
                 CAN_ELICIT.set(can_elicit).ok();
                 IS_CODEX.set(client["name"] == "codex-mcp-client").ok();
+                APPS.set(req["params"]["capabilities"]["extensions"]["io.modelcontextprotocol/ui"].is_object())
+                    .ok();
+                // No channel, and never claude/channel/permission (peer approvals).
+                let (capabilities, instructions) = if apps() {
+                    (
+                        json!({"tools": {}, "resources": {}}),
+                        format!(
+                            "{INSTRUCTIONS} Here, call pair_inbox once you're paired: it opens the pair inbox \
+                             beside the chat, which shows the peer's messages as they arrive and passes them to you."
+                        ),
+                    )
+                } else {
+                    (json!({"tools": {}}), INSTRUCTIONS.to_string())
+                };
                 Ok(json!({
                 "protocolVersion": "2025-06-18", // what we implement
-                "capabilities": {"tools": {}}, // no channel, and never claude/channel/permission (peer approvals)
+                "capabilities": capabilities,
                 "serverInfo": {"name": "pair", "version": env!("CARGO_PKG_VERSION")},
-                "instructions": INSTRUCTIONS}))
+                "instructions": instructions}))
             }
             "ping" => Ok(json!({})),
             "tools/list" => Ok(json!({"tools": tools()})),
+            "resources/list" if apps() => Ok(json!({"resources": [
+                {"uri": INBOX_UI, "name": "pair inbox", "mimeType": "text/html;profile=mcp-app"}]})),
+            "resources/read" if apps() && req["params"]["uri"] == INBOX_UI => Ok(json!({"contents": [
+                {"uri": INBOX_UI, "mimeType": "text/html;profile=mcp-app", "text": include_str!("inbox.html"),
+                 // Claude's own extension: open it in the side panel, beside the chat, where it has one.
+                 "_meta": {"ui": {"preferredDisplayMode": "fullscreen"}}}]})),
             "tools/call" => {
                 let mut ui = Ui {
                     lines: &mut lines,
@@ -2234,6 +2328,20 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn inbox_reads_by_number_without_clearing() {
+        let h: VecDeque<(u64, Value)> = (5..=7)
+            .map(|n| (n, json!({"meta": {"kind": "message", "peer": "p"}, "content": format!("m{n}")})))
+            .collect();
+        let (last, ev) = events_since(&h, 5);
+        assert_eq!(last, 7);
+        assert_eq!(ev.iter().map(|e| e["seq"].as_u64().unwrap()).collect::<Vec<_>>(), [6, 7]);
+        assert_eq!(ev[0]["content"], "m6");
+        assert_eq!(events_since(&h, 7).1.len(), 0);
+        assert_eq!(events_since(&h, 99).1.len(), 3); // the server restarted under the app: everything again
+        assert_eq!(events_since(&VecDeque::new(), 0), (0, vec![]));
+    }
 
     #[test]
     fn consent_flag_needs_recent_claude_code() {

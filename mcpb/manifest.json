@@ -45,7 +45,8 @@
     { "name": "send_to_peer", "description": "Send a message to the paired agent" },
     { "name": "send_file", "description": "Send a file to the paired colleague, after your approval" },
     { "name": "unpair", "description": "End the pairing" },
-    { "name": "check_messages", "description": "Collect pairing events and messages from the other agent" }
+    { "name": "check_messages", "description": "Collect pairing events and messages from the other agent" },
+    { "name": "pair_inbox", "description": "Open the pair inbox beside the chat: the peer's messages as they arrive" }
   ],
   "user_config": {
     "default_trust": {
