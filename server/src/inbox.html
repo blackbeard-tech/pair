@@ -20,6 +20,7 @@
   #empty { color: var(--color-text-secondary, GrayText); }
 </style>
 <header><span id="state">pair: connecting…</span><button id="hand" disabled>Hand to Claude</button></header>
+<p id="ask" hidden><span id="who"></span> <button id="accept">Accept</button> <button id="decline">Decline</button></p>
 <p id="empty">Messages from your paired colleague show up here as they arrive.</p>
 <ol id="list"></ol>
 <script>
@@ -78,8 +79,12 @@ async function poll() {
     if (!s) return;
     if (s.seq < seq) { seq = 0; handed = 0; return; } // the server restarted: start over
     $("state").textContent = s.peer ? `pair: ${s.state} with ${s.peer}` : `pair: ${s.state}`;
-    if (!s.events.length) return;
     s.events.forEach(e => { events.push(e); show(e); });
+    // Claude hears of a pair request only on its next turn, so the user answers it here.
+    const req = [...events].reverse().find(e => e.kind === "pair_request");
+    $("ask").hidden = !(s.state === "Pending" && req);
+    if (req) $("who").textContent = `Pair with ${req.peer}?`;
+    if (!s.events.length) return;
     seq = s.seq;
     $("hand").disabled = !events.some(e => e.seq > handed);
     await request("ui/update-model-context", { content: [{ type: "text", text: capped(events.slice(-KEEP), NOTE) }] });
@@ -87,6 +92,20 @@ async function poll() {
     console.warn("pair inbox poll", err);
   }
 }
+
+async function answer(tool) {
+  $("accept").disabled = $("decline").disabled = true;
+  try {
+    const r = await request("tools/call", { name: tool, arguments: {} });
+    $("who").textContent = (r && r.content || []).map(c => c.text).join(" ");
+  } catch (err) {
+    $("who").textContent = "Couldn't answer here: ask Claude to " + (tool === "pair_accept" ? "accept" : "decline") + " the pair request.";
+  }
+  $("accept").disabled = $("decline").disabled = false;
+  poll();
+}
+$("accept").addEventListener("click", () => answer("pair_accept"));
+$("decline").addEventListener("click", () => answer("pair_reject"));
 
 $("hand").addEventListener("click", async () => {
   const fresh = events.filter(e => e.seq > handed);

@@ -668,8 +668,11 @@ fn delivery_note() -> String {
     }
     let Some(dir) = SESSION_DIR.get().and_then(|d| d.as_deref()) else {
         if apps() {
-            return "Live delivery: call pair_inbox now if you haven't: it opens the pair inbox beside the chat, which \
-                    shows replies as they arrive and passes them to you. check_messages also returns them."
+            return "Live delivery: none to you. Nothing reaches you between turns here, so you aren't told when they join \
+                    or write: don't promise your user to check back or to ask before accepting. Call pair_inbox now if you \
+                    haven't: it opens the pair inbox beside the chat, where your user sees the pair request (with Accept \
+                    and Decline) and the peer's messages as they arrive; it also passes the messages to you for your \
+                    next turn. check_messages returns them too."
                 .into();
         }
         return "Live delivery: not available in this session; call check_messages to see replies.".into();
