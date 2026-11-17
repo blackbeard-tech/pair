@@ -22,6 +22,8 @@ const scenarios = {
   started: () => click("start"),
   // Someone entered the code: their pair request.
   request: () => set({ state: "Pending", initiator: true, peer: PEER, events: [ev(1, "pair_request", { content: "Someone entered your code." })] }),
+  // Accept clicked; Claude's confirmation dialog is still open (pair_accept answers when the user does).
+  accepting: () => { scenarios.request(); click("accept"); },
   joining: () => { set({}); setTimeout(() => { const f = pane().getElementById("joinin"); f.value = "7-amber-falcon"; pane().getElementById("joinform").requestSubmit(); }, 300); },
   paired: () => set({ state: "Paired", initiator: true, peer: PEER, events: [
     ev(1, "pair_request"), ev(2, "paired", { content: "Paired." }),
@@ -44,6 +46,7 @@ function answer(m) {
     return reply({ ...text(""), structuredContent: { ...server, events, seq: server.events.length } });
   }
   if (name === "pair_start") { set({ state: "Waiting", initiator: true }); return reply(text("pair · https://blackbeard.tech\nPairing code: 4-inventive-cranky (valid 2 minutes).\nLive delivery: …")); }
+  if (name === "pair_accept") return; // the dialog stays open for this screenshot
   if (name === "pair_join") { set({ state: "Waiting", initiator: false }); return reply(text("pair · https://blackbeard.tech\nConnecting (trust: read-only).")); }
   reply(text("ok"));
 }

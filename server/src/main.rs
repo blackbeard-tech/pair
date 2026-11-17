@@ -1444,6 +1444,10 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
                 }
             }
             let peer = accept(st);
+            if apps() {
+                // In Desktop the pane may have made this call: an event tells Claude (through the pane) and shows it there.
+                event("paired", &peer, &format!("Paired with {peer}. Reply with send_to_peer."));
+            }
             // Says how it was confirmed, so Claude reports the user's approval rather than "I accepted".
             let how = if dialog {
                 "Your user approved the pairing in the confirmation dialog. "

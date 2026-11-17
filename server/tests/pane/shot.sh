@@ -4,7 +4,7 @@
 set -euo pipefail
 out=${1:?usage: shot.sh OUT_DIR [scenario ...]}
 shift
-scenarios=("${@:-idle update started request joining paired files}")
+scenarios=("${@:-idle update started request accepting joining paired files}")
 read -ra scenarios <<<"${scenarios[*]}"
 chrome=${CHROME:-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"}
 mkdir -p "$out"
