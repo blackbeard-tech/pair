@@ -27,7 +27,8 @@
       "command": "${__dirname}/server/pair-macos-universal",
       "args": [],
       "env": {
-        "PAIR_DEFAULT_TRUST": "${user_config.default_trust}"
+        "PAIR_DEFAULT_TRUST": "${user_config.default_trust}",
+        "PAIR_DESKTOP": "1"
       },
       "platform_overrides": {
         "win32": {
