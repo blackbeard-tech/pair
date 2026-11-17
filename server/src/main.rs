@@ -108,17 +108,157 @@ fn emit(out: &Out, v: &Value) {
 /// (e.g. claude -p). Oldest dropped past INBOX_MAX.
 static INBOX: Mutex<Vec<Value>> = Mutex::new(Vec::new());
 const INBOX_MAX: usize = 200;
-/// The same events, numbered and kept after check_messages takes them: what pair_inbox (Claude Desktop's inbox app)
-/// reads by number. Reading never clears it, so check_messages still has everything if the app's context never
+/// The same events, numbered and kept after check_messages takes them: what pair_inbox (Claude Desktop's pair pane)
+/// reads by number. Reading never clears it, so check_messages still has everything if the pane's context never
 /// reaches Claude. Oldest dropped past INBOX_MAX.
 static HISTORY: Mutex<VecDeque<(u64, Value)>> = Mutex::new(VecDeque::new());
 /// The client renders MCP Apps (it announced the io.modelcontextprotocol/ui extension): Claude Desktop. Only then is
 /// pair_inbox offered, with its ui:// page.
 static APPS: OnceLock<bool> = OnceLock::new();
 const INBOX_UI: &str = "ui://pair/inbox.html";
+/// A newer release (version, page), looked up once at startup in Claude Desktop, for the pane's update link.
+static UPDATE: Mutex<Option<(String, String)>> = Mutex::new(None);
 
 fn apps() -> bool {
     *APPS.get().unwrap_or(&false)
+}
+
+/// Claude Desktop runs two pair servers for one chat: Claude's tool calls reach one, the pair pane's (an MCP App) the
+/// other. One runs every pairing (the engine: the lower pid while both live, named in `engine`, refreshed every
+/// second); the other forwards each tool call to it through this owner-only folder: calls.jsonl in, results/<id>.json
+/// out. So Claude and the pane act on the same pairing.
+fn desktop_dir() -> Option<PathBuf> {
+    (apps() && SESSION_DIR.get().and_then(|d| d.as_deref()).is_none())
+        .then(|| std::env::temp_dir().join(format!("pair-desktop-{}", whoami())))
+}
+
+/// The user name, for the shared folder's name (temp dirs are per user on macOS and Windows, not always on Linux).
+fn whoami() -> String {
+    std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .unwrap_or_default()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect()
+}
+
+/// `engine` older than this: its server is gone, and the other takes over.
+const ENGINE_FRESH: Duration = Duration::from_secs(3);
+/// How long a forwarded call waits for the engine's answer.
+const FORWARD_WAIT: Duration = Duration::from_secs(30);
+
+/// The other server, if it is the live engine: forward tool calls to it.
+fn other_engine(d: &Path) -> Option<u32> {
+    let f = d.join("engine");
+    let fresh = std::fs::metadata(&f)
+        .and_then(|m| m.modified())
+        .is_ok_and(|t| t.elapsed().unwrap_or_default() < ENGINE_FRESH);
+    let pid: u32 = std::fs::read_to_string(&f).ok()?.trim().parse().ok()?;
+    (fresh && pid != std::process::id()).then_some(pid)
+}
+
+/// Started once the client is known to be Claude Desktop: the engine heartbeat (the lower pid keeps it), the thread
+/// that runs calls forwarded by the other server while this one is the engine, and the update check.
+fn desktop_threads(st: &St, out: &Out) {
+    let Some(d) = desktop_dir() else { return };
+    let _ = std::fs::create_dir_all(d.join("results"));
+    #[cfg(unix)]
+    let _ = std::fs::set_permissions(&d, std::os::unix::fs::PermissionsExt::from_mode(0o700));
+    let me = std::process::id();
+    let dir = d.clone();
+    std::thread::spawn(move || {
+        while dir.is_dir() {
+            if !other_engine(&dir).is_some_and(|p| p < me) {
+                let tmp = dir.join(format!("engine.{me}.tmp"));
+                if std::fs::write(&tmp, me.to_string()).is_ok() {
+                    let _ = std::fs::rename(&tmp, dir.join("engine"));
+                }
+            }
+            std::thread::sleep(Duration::from_secs(1));
+        }
+    });
+    let (st, out) = (st.clone(), out.clone());
+    std::thread::spawn(move || {
+        let path = d.join("calls.jsonl");
+        let (_, mut offset) = read_new(&path, 0); // calls from before this server started are not ours to run
+        while d.is_dir() {
+            let (calls, next) = read_new(&path, offset);
+            offset = next;
+            for c in calls {
+                let id: String = c["id"].as_str().unwrap_or("").chars().filter(char::is_ascii_alphanumeric).collect();
+                if id.is_empty() || other_engine(&d).is_some() {
+                    continue; // the other server is the engine: it runs this one
+                }
+                // No dialogs from here: this server's client didn't make the call (pair_accept then relies on the
+                // pane's click or on Claude having asked, as without elicitation).
+                let (mut none, mut backlog, mut n) = (std::iter::empty::<std::io::Result<String>>(), VecDeque::new(), 0);
+                let mut ui = Ui { lines: &mut none, backlog: &mut backlog, can_elicit: false, next_id: &mut n };
+                let r = call(&c["params"], &st, &out, &mut ui);
+                let tmp = d.join("results").join(format!("{id}.tmp"));
+                if write_private(&tmp, &r.to_string()).is_ok() {
+                    let _ = std::fs::rename(&tmp, d.join("results").join(format!("{id}.json")));
+                }
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    });
+    std::thread::spawn(check_update);
+}
+
+/// Run a tool call on the other server (the engine) and return its result.
+fn forward(d: &Path, p: &Value) -> Value {
+    let id = format!("{}{}", std::process::id(), new_id());
+    if let Err(e) = append_private(&d.join("calls.jsonl"), &json!({"id": id, "params": p}).to_string()) {
+        return result_text(format!("pair couldn't reach its other Desktop server: {e}"), true);
+    }
+    let res = d.join("results").join(format!("{id}.json"));
+    let t = Instant::now();
+    while t.elapsed() < FORWARD_WAIT {
+        if let Ok(s) = std::fs::read_to_string(&res) {
+            let _ = std::fs::remove_file(&res);
+            return serde_json::from_str(&s).unwrap_or_else(|_| result_text("pair: unreadable answer", true));
+        }
+        std::thread::sleep(Duration::from_millis(30));
+    }
+    result_text("pair's other Desktop server didn't answer.", true)
+}
+
+/// Write a file only this user can read.
+fn write_private(path: &Path, s: &str) -> std::io::Result<()> {
+    let mut o = std::fs::OpenOptions::new();
+    o.create(true).write(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut o, 0o600);
+    o.open(path)?.write_all(s.as_bytes())
+}
+
+/// Look up the latest release on GitHub once (curl, on macOS and Windows 10+): UPDATE when it's newer than this one.
+fn check_update() {
+    let mut c = std::process::Command::new("curl");
+    c.args(["-fsS", "--max-time", "10", "https://api.github.com/repos/blackbeard-tech/pair/releases/latest"])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    #[cfg(windows)]
+    std::os::windows::process::CommandExt::creation_flags(&mut c, 0x0800_0000); // CREATE_NO_WINDOW
+    let Ok(o) = c.output() else { return };
+    let Ok(r) = serde_json::from_slice::<Value>(&o.stdout) else { return };
+    let tag = r["tag_name"].as_str().unwrap_or("").trim_start_matches('v');
+    if newer(tag, env!("CARGO_PKG_VERSION")) {
+        let url = format!("https://github.com/blackbeard-tech/pair/releases/tag/v{tag}");
+        *UPDATE.lock().unwrap() = Some((tag.to_string(), url));
+    }
+}
+
+/// a > b, both X.Y.Z (anything else, such as a pre-release, is never newer).
+fn newer(a: &str, b: &str) -> bool {
+    let v = |s: &str| -> Option<Vec<u64>> {
+        let p: Vec<u64> = s.split('.').map(|x| x.parse().ok()).collect::<Option<_>>()?;
+        (p.len() == 3).then_some(p)
+    };
+    match (v(a), v(b.split('-').next().unwrap_or(b))) {
+        (Some(a), Some(b)) => a > b,
+        _ => false,
+    }
 }
 
 fn event(kind: &str, peer: &str, content: &str) {
@@ -284,6 +424,7 @@ fn push(meta: Value, content: &str) {
         let mut kept = ev.clone();
         kept["at"] = json!(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64);
         h.push_back((n, kept));
+        drop(h);
         let mut q = INBOX.lock().unwrap();
         if q.len() >= INBOX_MAX {
             q.remove(0);
@@ -983,25 +1124,27 @@ fn events_since(h: &VecDeque<(u64, Value)>, since: u64) -> (u64, Vec<Value>) {
 /// pair_inbox. Claude calls it bare, and Claude Desktop opens the inbox app (its ui:// page); the app then calls it
 /// with `since`, the last number it has, and gets newer events in structuredContent.
 fn inbox(st: &St, since: Option<u64>) -> Value {
-    let (phase, peer, trust) = {
+    let (phase, peer, trust, initiator) = {
         let s = st.lock().unwrap();
-        (s.phase, s.peer.clone(), s.trust)
+        (s.phase, s.peer.clone(), s.trust, s.initiator)
     };
     let (last, events) = {
         let h = HISTORY.lock().unwrap();
         match since {
             Some(s) => events_since(&h, s),
-            None => (h.back().map_or(0, |(n, _)| *n), vec![]), // peer text reaches Claude only through the app
+            None => (h.back().map_or(0, |(n, _)| *n), vec![]), // peer text reaches Claude only through the pane
         }
     };
     let text = match since {
         Some(_) => format!("{} new event(s).", events.len()),
-        None => "The pair inbox is open: it shows the peer's messages as they arrive and passes them to you. \
+        None => "The pair pane is open: it shows the peer's messages as they arrive and passes them to you. \
                  check_messages also returns them."
             .into(),
     };
+    let update = UPDATE.lock().unwrap().clone().map(|(v, url)| json!({"version": v, "url": url}));
     json!({"content": [{"type": "text", "text": text}], "isError": false,
-        "structuredContent": {"state": format!("{phase:?}"), "peer": peer, "trust": trust, "seq": last, "events": events}})
+        "structuredContent": {"state": format!("{phase:?}"), "peer": peer, "trust": trust, "initiator": initiator,
+            "seq": last, "events": events, "update": update, "version": env!("CARGO_PKG_VERSION")}})
 }
 
 fn cfg(name: &str) -> AppConfig<Value> {
@@ -1300,15 +1443,7 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
                     }
                 }
             }
-            let (me, peer) = {
-                let mut s = st.lock().unwrap();
-                s.phase = Phase::Paired;
-                (s.me.clone(), s.peer.clone())
-            };
-            send(
-                st,
-                json!({"t": "accept", "v": PROTO, "name": me, "resume": true, "acks": acks()}),
-            );
+            let peer = accept(st);
             // Says how it was confirmed, so Claude reports the user's approval rather than "I accepted".
             let how = if dialog {
                 "Your user approved the pairing in the confirmation dialog. "
@@ -1444,6 +1579,20 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
         ("pair_inbox", _) if apps() => inbox(st, a["since"].as_u64()),
         (t, ph) => result_text(format!("{t} is not available right now (state: {ph:?})."), true),
     }
+}
+
+/// Accept the pending pair request (the user has said yes). Returns the peer.
+fn accept(st: &St) -> String {
+    let (me, peer) = {
+        let mut s = st.lock().unwrap();
+        s.phase = Phase::Paired;
+        (s.me.clone(), s.peer.clone())
+    };
+    send(
+        st,
+        json!({"t": "accept", "v": PROTO, "name": me, "resume": true, "acks": acks()}),
+    );
+    peer
 }
 
 fn minutes(m: u64) -> String {
@@ -2277,6 +2426,7 @@ fn main() {
                 IS_CODEX.set(client["name"] == "codex-mcp-client").ok();
                 APPS.set(req["params"]["capabilities"]["extensions"]["io.modelcontextprotocol/ui"].is_object())
                     .ok();
+                desktop_threads(&st, &out);
                 // No channel, and never claude/channel/permission (peer approvals).
                 let (capabilities, instructions) = if apps() {
                     (
@@ -2303,6 +2453,9 @@ fn main() {
                 {"uri": INBOX_UI, "mimeType": "text/html;profile=mcp-app", "text": include_str!("inbox.html"),
                  // Claude's own extension: open it in the side panel, beside the chat, where it has one.
                  "_meta": {"ui": {"preferredDisplayMode": "fullscreen"}}}]})),
+            "tools/call" if desktop_dir().is_some_and(|d| other_engine(&d).is_some()) => {
+                Ok(forward(&desktop_dir().unwrap(), &req["params"]))
+            }
             "tools/call" => {
                 let mut ui = Ui {
                     lines: &mut lines,
@@ -2337,6 +2490,17 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn update_only_for_a_newer_release() {
+        assert!(newer("0.1.20", "0.1.19"));
+        assert!(newer("0.2.0", "0.1.99"));
+        assert!(newer("0.1.20", "0.1.20-test3") == newer("0.1.20", "0.1.20")); // pre-release suffix ignored
+        assert!(!newer("0.1.19", "0.1.19"));
+        assert!(!newer("0.1.18", "0.1.19"));
+        assert!(!newer("0.1.20-rc.1", "0.1.19"));
+        assert!(!newer("", "0.1.19"));
+    }
 
     #[test]
     fn inbox_reads_by_number_without_clearing() {
