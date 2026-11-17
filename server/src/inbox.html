@@ -98,6 +98,16 @@ const shortPeer = p => (p || "").split(" · ")[1] || (p || "").split(" · ")[0] 
 const hhmm = ms => { const d = new Date(ms || Date.now()); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
 const bytes = n => n == null ? "" : n < 1024 ? n + " B" : n < 1048576 ? Math.round(n / 1024) + " KB" : (n / 1048576).toFixed(1) + " MB";
 const firstText = r => (r && r.content || []).map(c => c.text).filter(Boolean).join(" ");
+const SHOW = /Mac/.test(navigator.userAgent) ? "Show in Finder" : /Windows/.test(navigator.userAgent) ? "Show in Explorer" : "Show folder";
+// "Show in Finder" for a received file: the server opens it (the pane can't), and says why if it can't.
+function showButton(f) {
+  const b = el("button", "btn", SHOW);
+  b.onclick = async () => {
+    try { const r = await tool("reveal_file", { path: f.path }); if (r.isError) b.textContent = firstText(r); }
+    catch (err) { b.textContent = "Couldn't open the folder"; }
+  };
+  return b;
+}
 
 function request(method, params) {
   return new Promise((resolve, reject) => {
@@ -191,8 +201,11 @@ function render() {
       r.append(head);
       r.append(m.kind === "file" ? el("div", "", `▤ ${m.name} · ${bytes(m.size)} · saved to received/`) : el("div", "text", m.content));
       if (fromPeer) {
-        if (handed.has(m.seq)) r.append(el("div", "dim", "handed to Claude " + hhmm(handed.get(m.seq))));
-        else { const a = el("div", "actions"), b = el("button", "btn primary", "→ Claude"); b.onclick = () => hand(m); a.append(b); r.append(a); }
+        const a = el("div", "actions");
+        if (handed.has(m.seq)) a.append(el("span", "dim", "handed to Claude " + hhmm(handed.get(m.seq))));
+        else { const b = el("button", "btn primary", "→ Claude"); b.onclick = () => hand(m); a.append(b); }
+        if (m.kind === "file" && m.path) a.append(showButton(m));
+        r.append(a);
       }
     }
     rows.append(r);
@@ -208,7 +221,10 @@ function render() {
   for (const f of received.slice(-8)) {
     const r = el("div", "row");
     r.append(el("div", "", `▤ ${f.name} `), el("div", "dim", `${bytes(f.size)} · ${hhmm(f.at)} · ${f.path || ""}`));
-    if (!handed.has(f.seq)) { const a = el("div", "actions"), b = el("button", "btn primary", "→ Claude"); b.onclick = () => hand(f); a.append(b); r.append(a); }
+    const a = el("div", "actions");
+    if (!handed.has(f.seq)) { const b = el("button", "btn primary", "→ Claude"); b.onclick = () => hand(f); a.append(b); }
+    if (f.path) a.append(showButton(f));
+    r.append(a);
     recv.append(r);
   }
   $("sendsec").hidden = s.state !== "Paired";

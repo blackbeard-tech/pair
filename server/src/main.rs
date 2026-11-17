@@ -1280,8 +1280,45 @@ fn tools() -> Value {
             {"name": "pair_inbox", "description": "Open the pair inbox beside the chat: it shows the peer's messages as they arrive and passes them to you. Call it once you're paired.",
              "inputSchema": {"type": "object", "properties": {"since": {"type": "integer", "description": "Used by the inbox itself; leave it unset."}}},
              "_meta": {"ui": {"resourceUri": INBOX_UI}, "ui/resourceUri": INBOX_UI}}));
+        // For the pane's "Show in Finder": the app can't open anything itself. Hidden from Claude (visibility).
+        list.as_array_mut().unwrap().push(json!(
+            {"name": "reveal_file", "description": "Show a received file in Finder or File Explorer. Used by the pair pane.",
+             "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]},
+             "_meta": {"ui": {"visibility": ["app"]}}}));
     }
     list
+}
+
+/// Show a received file in the file manager. Only files in the received folder: the path comes from the pane.
+fn reveal(path: &str) -> Value {
+    let Ok(p) = Path::new(path).canonicalize() else {
+        return result_text("That file is gone (received files are kept 7 days).", true);
+    };
+    if !received_dir().canonicalize().is_ok_and(|d| p.starts_with(d)) {
+        return result_text("Only received files can be shown.", true);
+    }
+    let mut c;
+    #[cfg(target_os = "macos")]
+    {
+        c = std::process::Command::new("open");
+        c.arg("-R").arg(&p);
+    }
+    #[cfg(windows)]
+    {
+        c = std::process::Command::new("explorer");
+        let mut arg = std::ffi::OsString::from("/select,");
+        arg.push(&p);
+        c.arg(arg);
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
+    {
+        c = std::process::Command::new("xdg-open"); // no "select" there: open the folder
+        c.arg(p.parent().unwrap_or(&p));
+    }
+    match c.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).spawn() {
+        Ok(_) => result_text("Shown.", false),
+        Err(e) => result_text(format!("Couldn't open the folder: {e}"), true),
+    }
 }
 
 fn send(st: &St, msg: Value) -> bool {
@@ -1585,6 +1622,7 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
         }
         ("check_messages", _) => check_messages(st),
         ("pair_inbox", _) if apps() => inbox(st, a["since"].as_u64()),
+        ("reveal_file", _) if apps() => reveal(a["path"].as_str().unwrap_or("")),
         (t, ph) => result_text(format!("{t} is not available right now (state: {ph:?})."), true),
     }
 }
