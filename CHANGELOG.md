@@ -6,7 +6,7 @@ What changed in each release of pair, newest first. Install or update in Claude 
 From 0.1.6 the plugin and its binary always share one version number. Before that they were numbered
 separately; each early entry names the plugin versions that used that binary.
 
-## Unreleased
+## 0.1.20 (2026-11-18)
 
 - Claude Desktop: a pair inbox. Once paired, Claude opens it (the new `pair_inbox` tool, an MCP App): it sits beside
   the chat where Desktop has the side panel, in the chat otherwise, and shows the peer's messages as they arrive. It
