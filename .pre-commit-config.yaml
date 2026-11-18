@@ -28,7 +28,8 @@ repos:
     hooks:
       - id: cargo-fmt
         name: cargo fmt
-        entry: sh -c 'command -v cargo >/dev/null || { echo "cargo not on PATH, skipped (CI checks fmt)"; exit 0; }; cargo fmt --manifest-path server/Cargo.toml --check'
+        # Homebrew rustup is keg-only: its cargo isn't on PATH unless added, and the hook then skipped silently.
+        entry: sh -c 'PATH="$PATH:/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin"; command -v cargo >/dev/null || { echo "cargo not found, skipped (CI checks fmt)"; exit 0; }; cargo fmt --manifest-path server/Cargo.toml --check'
         language: system
         files: ^server/.*\.rs$
         pass_filenames: false

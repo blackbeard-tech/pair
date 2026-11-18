@@ -189,14 +189,25 @@ fn desktop_threads(st: &St, out: &Out) {
             let (calls, next) = read_new(&path, offset);
             offset = next;
             for c in calls {
-                let id: String = c["id"].as_str().unwrap_or("").chars().filter(char::is_ascii_alphanumeric).collect();
+                let id: String = c["id"]
+                    .as_str()
+                    .unwrap_or("")
+                    .chars()
+                    .filter(char::is_ascii_alphanumeric)
+                    .collect();
                 if id.is_empty() || other_engine(&d).is_some() {
                     continue; // the other server is the engine: it runs this one
                 }
                 // No dialogs from here: this server's client didn't make the call (pair_accept then relies on the
                 // pane's click or on Claude having asked, as without elicitation).
-                let (mut none, mut backlog, mut n) = (std::iter::empty::<std::io::Result<String>>(), VecDeque::new(), 0);
-                let mut ui = Ui { lines: &mut none, backlog: &mut backlog, can_elicit: false, next_id: &mut n };
+                let (mut none, mut backlog, mut n) =
+                    (std::iter::empty::<std::io::Result<String>>(), VecDeque::new(), 0);
+                let mut ui = Ui {
+                    lines: &mut none,
+                    backlog: &mut backlog,
+                    can_elicit: false,
+                    next_id: &mut n,
+                };
                 let r = call(&c["params"], &st, &out, &mut ui);
                 let tmp = d.join("results").join(format!("{id}.tmp"));
                 if write_private(&tmp, &r.to_string()).is_ok() {
@@ -239,13 +250,20 @@ fn write_private(path: &Path, s: &str) -> std::io::Result<()> {
 /// Look up the latest release on GitHub once (curl, on macOS and Windows 10+): UPDATE when it's newer than this one.
 fn check_update() {
     let mut c = std::process::Command::new("curl");
-    c.args(["-fsS", "--max-time", "10", "https://api.github.com/repos/blackbeard-tech/pair/releases/latest"])
-        .stdin(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
+    c.args([
+        "-fsS",
+        "--max-time",
+        "10",
+        "https://api.github.com/repos/blackbeard-tech/pair/releases/latest",
+    ])
+    .stdin(std::process::Stdio::null())
+    .stderr(std::process::Stdio::null());
     #[cfg(windows)]
     std::os::windows::process::CommandExt::creation_flags(&mut c, 0x0800_0000); // CREATE_NO_WINDOW
     let Ok(o) = c.output() else { return };
-    let Ok(r) = serde_json::from_slice::<Value>(&o.stdout) else { return };
+    let Ok(r) = serde_json::from_slice::<Value>(&o.stdout) else {
+        return;
+    };
     let tag = r["tag_name"].as_str().unwrap_or("").trim_start_matches('v');
     if newer(tag, env!("CARGO_PKG_VERSION")) {
         let url = format!("https://github.com/blackbeard-tech/pair/releases/tag/v{tag}");
@@ -1145,7 +1163,11 @@ fn inbox(st: &St, since: Option<u64>) -> Value {
                  check_messages also returns them."
             .into(),
     };
-    let update = UPDATE.lock().unwrap().clone().map(|(v, url)| json!({"version": v, "url": url}));
+    let update = UPDATE
+        .lock()
+        .unwrap()
+        .clone()
+        .map(|(v, url)| json!({"version": v, "url": url}));
     json!({"content": [{"type": "text", "text": text}], "isError": false,
         "structuredContent": {"state": format!("{phase:?}"), "peer": peer, "trust": trust, "initiator": initiator,
             "seq": last, "events": events, "update": update, "version": env!("CARGO_PKG_VERSION")}})
@@ -1315,7 +1337,11 @@ fn reveal(path: &str) -> Value {
         c = std::process::Command::new("xdg-open"); // no "select" there: open the folder
         c.arg(p.parent().unwrap_or(&p));
     }
-    match c.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).spawn() {
+    match c
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .spawn()
+    {
         Ok(_) => result_text("Shown.", false),
         Err(e) => result_text(format!("Couldn't open the folder: {e}"), true),
     }
@@ -1487,7 +1513,11 @@ fn call(p: &Value, st: &St, out: &Out, ui: &mut Ui) -> Value {
             let peer = accept(st);
             if apps() {
                 // In Desktop the pane may have made this call: an event tells Claude (through the pane) and shows it there.
-                event("paired", &peer, &format!("Paired with {peer}. Reply with send_to_peer."));
+                event(
+                    "paired",
+                    &peer,
+                    &format!("Paired with {peer}. Reply with send_to_peer."),
+                );
             }
             // Says how it was confirmed, so Claude reports the user's approval rather than "I accepted".
             let how = if dialog {
@@ -2551,12 +2581,23 @@ mod tests {
     #[test]
     fn inbox_reads_by_number_without_clearing() {
         let h: VecDeque<(u64, Value)> = (5..=7)
-            .map(|n| (n, json!({"meta": {"kind": "message", "peer": "p"}, "content": format!("m{n}")})))
+            .map(|n| {
+                (
+                    n,
+                    json!({"meta": {"kind": "message", "peer": "p"}, "content": format!("m{n}")}),
+                )
+            })
             .collect();
         let (last, ev) = events_since(&h, 5);
         assert_eq!(last, 7);
-        assert_eq!(ev.iter().map(|e| e["seq"].as_u64().unwrap()).collect::<Vec<_>>(), [6, 7]);
-        assert_eq!((&ev[0]["content"], &ev[0]["kind"], &ev[0]["peer"]), (&json!("m6"), &json!("message"), &json!("p")));
+        assert_eq!(
+            ev.iter().map(|e| e["seq"].as_u64().unwrap()).collect::<Vec<_>>(),
+            [6, 7]
+        );
+        assert_eq!(
+            (&ev[0]["content"], &ev[0]["kind"], &ev[0]["peer"]),
+            (&json!("m6"), &json!("message"), &json!("p"))
+        );
         assert_eq!(events_since(&h, 7).1.len(), 0);
         assert_eq!(events_since(&h, 99).1.len(), 3); // the server restarted under the app: everything again
         assert_eq!(events_since(&VecDeque::new(), 0), (0, vec![]));

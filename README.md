@@ -83,11 +83,15 @@ Shared folders and pairing with more than one person are coming. An organization
 
 Download `pair-X.Y.Z.mcpb` from the [latest release](https://github.com/blackbeard-tech/pair/releases/latest) and open
 it to install pair as a Claude Desktop extension. It holds that release's own binaries (the macOS ones signed), packed by
-the release workflow. Set the Default trust level in the extension's settings. Once paired, Claude opens the pair
-inbox: beside the chat if your Claude has the side panel, in the chat otherwise. It shows the peer's messages as they
-arrive, and Claude sees them on your next message. Desktop can't start Claude's turn by itself, so to have Claude act
-on a message straight away, click "Hand to Claude" (Desktop asks you to allow it). Without the inbox, ask Claude to
-check for messages. To build one yourself from a release: `scripts/mcpb.sh X.Y.Z`.
+the release workflow. Set the Default trust level in the extension's settings.
+
+Ask Claude to open the pair pane (or start a pairing). It sits beside the chat if your Claude has the side panel, in
+the chat otherwise, and works like the Claude Code pane: start a pairing or enter a code, accept a request, chat with
+the other person, see received files (Show in Finder / Explorer) and send one, unpair. It also links to a newer pair
+when one is out. The peer's messages show there as they arrive, and Claude sees them on your next message. Desktop
+can't start Claude's turn by itself, so to have Claude act on one straight away, click "→ Claude" (Desktop asks you to
+allow it). Without the pane, ask Claude to check for messages. To build one yourself from a release:
+`scripts/mcpb.sh X.Y.Z`.
 
 If Claude says it has no pair tools, the extension didn't start, and Claude Desktop doesn't say so in the chat. Its
 error is in Settings → Extensions → pair (the log). Please [report it](https://github.com/blackbeard-tech/pair/issues).

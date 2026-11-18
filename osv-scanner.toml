@@ -3,3 +3,8 @@
 id = "RUSTSEC-2026-0441"
 ignoreUntil = 2027-02-05
 reason = "Informational: pin-utils unmaintained, no vuln. Only via wasmtimer (wasm32-only dep of magic-wormhole); not compiled for macOS/Windows targets."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0543"
+ignoreUntil = 2027-02-18
+reason = "Informational: chrono unmaintained, no vuln. Only via zxcvbn (password-strength crate magic-wormhole 0.8.1 depends on); pair has no direct use. Drops out when magic-wormhole or zxcvbn moves off chrono."
