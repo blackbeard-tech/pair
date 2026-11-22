@@ -10,7 +10,7 @@ repository = "https://github.com/blackbeard-tech/pair"
 description = "MCP server that pairs two Claude Code sessions with a one-time code over magic-wormhole"
 
 [dependencies]
-magic-wormhole = { version = "=0.8.1", default-features = false, features = ["transit"] }
+magic-wormhole = { version = "=0.8.1", default-features = false, features = ["transit", "native-tls"] }
 futures = "0.3"  # already in the tree via magic-wormhole
 url = "2"       # already in the tree via magic-wormhole
 async-channel = "2"

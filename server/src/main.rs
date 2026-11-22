@@ -1814,14 +1814,108 @@ fn relay_notice(welcome: Option<&str>) -> String {
 }
 
 /// Transit relay used when the two machines can't reach each other directly.
-fn transit_relays() -> Vec<magic_wormhole::transit::RelayHint> {
-    let url =
-        std::env::var("PAIR_TRANSIT_RELAY").unwrap_or_else(|_| magic_wormhole::transit::DEFAULT_RELAY_SERVER.into());
-    url.parse::<url::Url>()
+fn transit_relay_url() -> Option<url::Url> {
+    std::env::var("PAIR_TRANSIT_RELAY")
+        .unwrap_or_else(|_| magic_wormhole::transit::DEFAULT_RELAY_SERVER.into())
+        .parse::<url::Url>()
         .ok()
-        .and_then(|u| magic_wormhole::transit::RelayHint::from_urls(u.host_str().map(str::to_owned), [u]).ok())
-        .into_iter()
-        .collect()
+}
+
+/// Opt-in for hosts whose only way out is an HTTP CONNECT proxy (sandboxes, corporate networks): set
+/// PAIR_TRANSIT_PROXY=http://host:port. Transit then goes relay-only through a loopback forwarder that opens a
+/// CONNECT tunnel to the transit relay for each connection. Direct connections and the STUN lookup are skipped:
+/// behind such a proxy they can't work, and an intercepting proxy's HTTP reply to STUN panics magic-wormhole
+/// 0.8.1 ("range end index 21584 out of range for slice of length 236"). Both peers must use the same transit
+/// relay (the default one, unless both set PAIR_TRANSIT_RELAY).
+fn transit_proxy() -> Option<String> {
+    let v = std::env::var("PAIR_TRANSIT_PROXY").ok()?;
+    let v = v.trim();
+    if v.is_empty() {
+        return None;
+    }
+    let hostport = v.strip_prefix("http://").unwrap_or(v).trim_end_matches('/');
+    Some(hostport.to_string())
+}
+
+/// Starts (once) the loopback forwarder for PAIR_TRANSIT_PROXY; returns its port.
+fn transit_forwarder(proxy: &str, relay_host: &str, relay_port: u16) -> Result<u16, String> {
+    static PORT: OnceLock<Result<u16, String>> = OnceLock::new();
+    PORT.get_or_init(|| {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|e| format!("transit forwarder: {e}"))?;
+        let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+        let (proxy, target) = (proxy.to_string(), format!("{relay_host}:{relay_port}"));
+        std::thread::spawn(move || {
+            for conn in listener.incoming().flatten() {
+                let (proxy, target) = (proxy.clone(), target.clone());
+                std::thread::spawn(move || {
+                    if let Err(e) = forward_via_connect(conn, &proxy, &target) {
+                        debug!("transit proxy: {e}");
+                    }
+                });
+            }
+        });
+        Ok(port)
+    })
+    .clone()
+}
+
+/// One forwarded connection: CONNECT through the proxy, then copy bytes both ways until either side closes.
+fn forward_via_connect(local: std::net::TcpStream, proxy: &str, target: &str) -> std::io::Result<()> {
+    use std::io::{Error, Read};
+    let mut up = std::net::TcpStream::connect(proxy)?;
+    up.set_read_timeout(Some(Duration::from_secs(30)))?;
+    write!(up, "CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n\r\n")?;
+    let mut head = Vec::new();
+    let mut b = [0u8; 1];
+    while !head.ends_with(b"\r\n\r\n") {
+        if up.read(&mut b)? == 0 || head.len() > 8192 {
+            return Err(Error::other("proxy closed during CONNECT"));
+        }
+        head.push(b[0]);
+    }
+    let status = String::from_utf8_lossy(&head).lines().next().unwrap_or("").to_string();
+    if status.split_whitespace().nth(1) != Some("200") {
+        return Err(Error::other(format!("proxy refused CONNECT {target}: {status}")));
+    }
+    up.set_read_timeout(None)?;
+    let (mut a_r, mut a_w, mut b_r, mut b_w) = (local.try_clone()?, local, up.try_clone()?, up);
+    let t = std::thread::spawn(move || {
+        let _ = std::io::copy(&mut a_r, &mut b_w);
+        let _ = b_w.shutdown(std::net::Shutdown::Write);
+    });
+    let _ = std::io::copy(&mut b_r, &mut a_w);
+    let _ = a_w.shutdown(std::net::Shutdown::Write);
+    let _ = t.join();
+    Ok(())
+}
+
+/// The relay hints we use (and advertise). Through PAIR_TRANSIT_PROXY that's the loopback forwarder.
+fn transit_relays() -> Vec<magic_wormhole::transit::RelayHint> {
+    let Some(mut u) = transit_relay_url() else { return Vec::new() };
+    let name = u.host_str().map(str::to_owned);
+    if let Some(proxy) = transit_proxy() {
+        let (Some(host), Some(port)) = (u.host_str().map(str::to_owned), u.port()) else { return Vec::new() };
+        match transit_forwarder(&proxy, &host, port) {
+            Ok(local) => {
+                let _ = u.set_host(Some("127.0.0.1"));
+                let _ = u.set_port(Some(local));
+            }
+            Err(e) => {
+                debug!("{e}");
+                return Vec::new();
+            }
+        }
+    }
+    magic_wormhole::transit::RelayHint::from_urls(name, [u]).ok().into_iter().collect()
+}
+
+/// Direct connections need inbound/outbound raw TCP; through an HTTP proxy only the relay works.
+fn transit_abilities() -> magic_wormhole::transit::Abilities {
+    if transit_proxy().is_some() {
+        magic_wormhole::transit::Abilities::FORCE_RELAY
+    } else {
+        magic_wormhole::transit::Abilities::ALL
+    }
 }
 
 /// Like the wormhole CLI: swap transit hints over the mailbox, connect (directly if possible, else via the
@@ -1829,7 +1923,7 @@ fn transit_relays() -> Vec<magic_wormhole::transit::RelayHint> {
 async fn open_transit(mut w: Wormhole, initiator: bool) -> Result<(magic_wormhole::transit::Transit, bool), String> {
     use magic_wormhole::transit::{self, Abilities, TransitRole};
     let setup = async {
-        let connector = transit::init(Abilities::ALL, None, transit_relays())
+        let connector = transit::init(transit_abilities(), None, transit_relays())
             .await
             .map_err(|e| e.to_string())?;
         debug!("transit: hints ready, sending");
