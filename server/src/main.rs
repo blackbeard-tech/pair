@@ -1891,10 +1891,14 @@ fn forward_via_connect(local: std::net::TcpStream, proxy: &str, target: &str) ->
 
 /// The relay hints we use (and advertise). Through PAIR_TRANSIT_PROXY that's the loopback forwarder.
 fn transit_relays() -> Vec<magic_wormhole::transit::RelayHint> {
-    let Some(mut u) = transit_relay_url() else { return Vec::new() };
+    let Some(mut u) = transit_relay_url() else {
+        return Vec::new();
+    };
     let name = u.host_str().map(str::to_owned);
     if let Some(proxy) = transit_proxy() {
-        let (Some(host), Some(port)) = (u.host_str().map(str::to_owned), u.port()) else { return Vec::new() };
+        let (Some(host), Some(port)) = (u.host_str().map(str::to_owned), u.port()) else {
+            return Vec::new();
+        };
         match transit_forwarder(&proxy, &host, port) {
             Ok(local) => {
                 let _ = u.set_host(Some("127.0.0.1"));
@@ -1906,7 +1910,10 @@ fn transit_relays() -> Vec<magic_wormhole::transit::RelayHint> {
             }
         }
     }
-    magic_wormhole::transit::RelayHint::from_urls(name, [u]).ok().into_iter().collect()
+    magic_wormhole::transit::RelayHint::from_urls(name, [u])
+        .ok()
+        .into_iter()
+        .collect()
 }
 
 /// Direct connections need inbound/outbound raw TCP; through an HTTP proxy only the relay works.
