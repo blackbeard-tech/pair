@@ -37,6 +37,7 @@ other agent tools (P3) and remembered peers are out of scope.
 |---|---|---|
 | Mailbox relay operator | Both IP addresses, timing of setup, app ID, nameplate, mailbox ID | Message content, K, the code words |
 | Transit relay operator (only when the machines can't connect directly) | Both IP addresses, timing, message and file sizes | Message content, K |
+| HTTP proxy, with `PAIR_TRANSIT_PROXY` set | The transit relay's address, timing, message and file sizes (and the proxy credentials in the URL, sent as Basic auth) | Message content, K |
 | Network observer (P1 uses plaintext `ws://` on port 4000) | The same metadata as the relay | Message content |
 | Paired peer | Whatever your Claude sends them, and when each of their messages reached your pair (delivery confirmations, 0.1.17+; fine between paired peers) | Your files, tools or session, except through your Claude's replies |
 | Someone who overhears the code | Nothing, unless they redeem it before B does (see T1) | |
