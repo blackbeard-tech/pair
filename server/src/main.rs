@@ -1863,7 +1863,18 @@ fn parse_proxy(v: &str) -> Result<Proxy, String> {
             u.scheme()
         ));
     }
-    let host = u.host_str().ok_or("PAIR_TRANSIT_PROXY has no host")?;
+    // Loopback only: the hop to the proxy is plain HTTP (credentials included), so it must not cross a network.
+    // Sandboxes with proxy-only egress run theirs on the box (Grok Bot: 127.0.0.1:8791).
+    let loopback = match u.host() {
+        Some(url::Host::Domain(d)) => d.eq_ignore_ascii_case("localhost"),
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        None => return Err("PAIR_TRANSIT_PROXY has no host".into()),
+    };
+    if !loopback {
+        return Err("PAIR_TRANSIT_PROXY must be a proxy on this machine (127.0.0.1, ::1 or localhost)".into());
+    }
+    let host = u.host_str().unwrap_or_default();
     let addr = format!("{host}:{}", u.port().unwrap_or(80));
     let auth = (!u.username().is_empty()).then(|| {
         let dec = |s: &str| percent_encoding::percent_decode_str(s).decode_utf8_lossy().into_owned();
@@ -2743,23 +2754,28 @@ mod tests {
     fn proxy_urls() {
         let p = |s| parse_proxy(s);
         assert_eq!(
-            p("http://proxy:3128"),
+            p("http://127.0.0.1:8791"),
             Ok(Proxy {
-                addr: "proxy:3128".into(),
+                addr: "127.0.0.1:8791".into(),
                 auth: None
             })
         );
-        assert_eq!(p("proxy:3128/").unwrap().addr, "proxy:3128");
-        assert_eq!(p("HTTP://proxy").unwrap().addr, "proxy:80");
+        assert_eq!(p("127.0.0.1:8791/").unwrap().addr, "127.0.0.1:8791");
+        assert_eq!(p("HTTP://LOCALHOST").unwrap().addr, "localhost:80");
+        assert_eq!(p("http://[::1]:3128").unwrap().addr, "[::1]:3128");
         // user:password (percent-encoded in the URL) becomes Basic auth; never part of the address.
-        let a = p("http://alice:p%40ss@proxy.corp:8080").unwrap();
-        assert_eq!(a.addr, "proxy.corp:8080");
+        let a = p("http://alice:p%40ss@127.0.0.1:8080").unwrap();
+        assert_eq!(a.addr, "127.0.0.1:8080");
         assert_eq!(
             a.auth.as_deref(),
             Some(format!("Basic {}", B64.encode("alice:p@ss")).as_str())
         );
-        assert!(p("https://proxy:443").unwrap_err().contains("only http://"));
-        assert!(p("socks5://proxy:1080").is_err());
+        // Plain HTTP must not leave the machine.
+        assert!(p("http://proxy.corp:3128").unwrap_err().contains("on this machine"));
+        assert!(p("http://10.0.0.2:3128").unwrap_err().contains("on this machine"));
+        assert!(p("http://localhost.evil.com:3128").is_err());
+        assert!(p("https://127.0.0.1:443").unwrap_err().contains("only http://"));
+        assert!(p("socks5://127.0.0.1:1080").is_err());
     }
 
     #[test]

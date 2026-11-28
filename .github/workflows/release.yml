@@ -134,8 +134,8 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { name: windows, path: "pair-*", if-no-files-found: error }
 
-  # Static (musl) Linux binaries, e.g. for Claude Code on Linux. Pure Rust, so no C toolchain needed;
-  # each arch builds natively, no package mirror involved.
+  # Static (musl) Linux binaries, e.g. for Claude Code on Linux. Each arch builds natively. The only C is the
+  # OpenSSL that native-tls links in (built from source by openssl-src, a crate; musl-tools from Ubuntu's mirror).
   linux:
     strategy:
       matrix:
@@ -152,8 +152,11 @@ jobs:
         with: { persist-credentials: false }
       - env: { TARGET: "${{ matrix.target }}", ASSET: "${{ matrix.asset }}" }
         run: |
+          # musl-gcc builds the OpenSSL that native-tls links in statically (server/Cargo.toml).
+          sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends musl-tools
           rustup toolchain install stable --profile minimal -t "$TARGET" && rustup default stable
           cargo build --locked --release --target "$TARGET"
+          file "target/$TARGET/release/pair" | grep -q 'statically linked'
           cp "target/$TARGET/release/pair" "../$ASSET"
           file "../$ASSET"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
