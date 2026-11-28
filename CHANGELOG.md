@@ -6,6 +6,13 @@ What changed in each release of pair, newest first. Install or update in Claude 
 From 0.1.6 the plugin and its binary always share one version number. Before that they were numbered
 separately; each early entry names the plugin versions that used that binary.
 
+## Unreleased
+
+- Works where the only way out is port 443 and an HTTP proxy on the same machine (e.g. Grok Bot): set
+  `PAIR_RELAY=wss://relay.magic-wormhole.io:443/v1` (the mailbox over TLS, now supported) and
+  `PAIR_TRANSIT_PROXY=http://127.0.0.1:<port>`, and transit goes through the transit relay over a CONNECT tunnel
+  (relay only, so files up to 25 MB). See docs/protocol.md. Thanks to Rhys Blackbeard (#61, #62).
+
 ## 0.1.20 (2026-11-18)
 
 - Claude Desktop: a pair inbox. Once paired, Claude opens it (the new `pair_inbox` tool, an MCP App): it sits beside

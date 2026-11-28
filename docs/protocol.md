@@ -24,7 +24,16 @@ update, rather than left waiting.
 
 **Your own servers:** set `PAIR_RELAY` (mailbox URL, default `ws://relay.magic-wormhole.io:4000/v1`) and
 `PAIR_TRANSIT_RELAY` (default `tcp://transit.magic-wormhole.io:4001`) in the environment Claude Code starts in.
-Both sides must use the same mailbox. Only `ws://` and `tcp://` work for now; `wss://` (TLS) is not supported yet.
+Both sides must use the same mailbox. The mailbox can be `ws://` or `wss://` (TLS, checked against the system's
+certificate store), e.g. `PAIR_RELAY=wss://relay.magic-wormhole.io:443/v1` where only port 443 is open. The
+transit relay is `tcp://`.
+
+**Behind an HTTP proxy:** where the only way out is an HTTP CONNECT proxy, set
+`PAIR_TRANSIT_PROXY=http://[user:password@]host:port`. Transit then goes only through the transit relay, tunnelled
+with CONNECT from a forwarder on 127.0.0.1 (direct connections and STUN are skipped), so files are limited to 25 MB.
+The proxy must be on this machine (`127.0.0.1`, `::1` or `localhost`), since the hop to it is plain HTTP; Basic
+auth is sent if the URL has a user name. The mailbox connection (`PAIR_RELAY`) doesn't go through the proxy. The
+peer is sent the real transit relay's address, never the forwarder's.
 
 ## Messages
 
